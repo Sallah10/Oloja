@@ -11,7 +11,7 @@ export default function SalesScreen() {
       </View>
       <EmptyState
         title="No sales yet"
-        body="When you sell — cash or on credit — record it here. Each sale updates what a customer owes you automatically."
+        body="When you sell - cash or on credit - record it here. Each sale updates what a customer owes you automatically."
       />
     </Screen>
   );
