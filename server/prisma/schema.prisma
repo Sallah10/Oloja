@@ -45,11 +45,46 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  users          User[]
+  sessions       Session[]
   products       Product[]
   customers      Customer[]
   transactions   Transaction[]
   stockMovements StockMovement[]
   debtEntries    DebtEntry[]
+}
+
+// One owner account per shop (tenant) for v1. Adding more roles later is
+// additive: a title field and an invite flow, not a schema redesign.
+model User {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions Session[]
+
+  @@index([tenantId])
+}
+
+// Revocable login. tokenHash stores SHA-256(rawToken); we never keep the raw
+// token in the DB. Login writes a row here, /auth/logout deletes it.
+model Session {
+  id     String @id @default(cuid())
+  tenantId String
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, userId])
 }
 
 model Product {
