@@ -2,7 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { HttpError, asyncHandler } from "../lib/http-error.js";
-import { tenantScoped } from "../lib/scoped.js";
+import { runIdempotent } from "../lib/idempotency.js";
+import { TenantScopedClient, tenantScoped } from "../lib/scoped.js";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 
 export const productsRouter = Router();
@@ -45,6 +46,7 @@ const createSchema = z.object({
   priceMinor: z.number().int().positive(),
   costMinor: z.number().int().nonnegative(),
   lowStockThreshold: z.number().int().nonnegative().default(0),
+  idempotencyKey: z.string().min(8).max(128).optional(),
 });
 
 const updateSchema = z.object({
@@ -61,9 +63,10 @@ const stockSchema = z.object({
   quantity: z.number().int(),
   unitCostMinor: z.number().int().nonnegative().optional(),
   note: z.string().trim().max(240).optional(),
+  idempotencyKey: z.string().min(8).max(128).optional(),
 });
 
-async function stockQty(scoped: ReturnType<typeof tenantScoped>, productId: string) {
+async function stockQty(scoped: { stockMovement: TenantScopedClient["stockMovement"] }, productId: string) {
   const agg = await scoped.stockMovement.aggregate({
     where: { productId },
     _sum: { quantity: true },
@@ -114,15 +117,25 @@ productsRouter.post(
   asyncHandler(async (req, res) => {
     const scoped = scopedFor(req as AuthedRequest);
     const auth = (req as AuthedRequest).auth;
-    const input = createSchema.parse(req.body);
+    const { idempotencyKey, ...input } = createSchema.parse(req.body);
 
-    const product = await scoped.product.create({
-      // tenantId is explicit for the types; the scoped hook overwrites it
-      // regardless, so a caller could never spoof another tenant.
-      data: { tenantId: auth.tenantId, ...input },
-      select: productFields,
-    });
-    res.status(201).json({ ...product, stockQty: 0 });
+    const product = await runIdempotent(
+      scoped,
+      auth.tenantId,
+      idempotencyKey,
+      "POST",
+      "/api/products",
+      async (tx) => {
+        const created = await tx.product.create({
+          // tenantId is explicit for the types; the scoped hook overwrites it
+          // regardless, so a caller could never spoof another tenant.
+          data: { tenantId: auth.tenantId, ...input },
+          select: productFields,
+        });
+        return { ...created, stockQty: 0 };
+      },
+    );
+    res.status(201).json(product);
   }),
 );
 
@@ -149,47 +162,61 @@ productsRouter.post(
     const scoped = scopedFor(req as AuthedRequest);
     const auth = (req as AuthedRequest).auth;
     const { id } = idParam.parse(req.params);
-    const input = stockSchema.parse(req.body);
+    const { idempotencyKey, ...input } = stockSchema.parse(req.body);
 
-    const product = await scoped.product.findFirst({
-      where: { id },
-      select: { id: true, costMinor: true },
-    });
-    if (!product) throw new HttpError(404, "Product not found");
+    const result = await runIdempotent(
+      scoped,
+      auth.tenantId,
+      idempotencyKey,
+      "POST",
+      `/api/products/${id}/stock`,
+      async (tx) => {
+        const product = await tx.product.findFirst({
+          where: { id },
+          select: { id: true, costMinor: true },
+        });
+        if (!product) throw new HttpError(404, "Product not found");
 
-    if (input.type === "RESTOCK" && input.quantity <= 0) {
-      throw new HttpError(400, "RESTOCK quantity must be positive");
-    }
-    if (input.type === "ADJUST" && input.quantity === 0) {
-      throw new HttpError(400, "ADJUST quantity cannot be zero");
-    }
-    if (input.type === "RESTOCK" && input.unitCostMinor === undefined) {
-      throw new HttpError(400, "unitCostMinor is required for a RESTOCK");
-    }
+        if (input.type === "RESTOCK" && input.quantity <= 0) {
+          throw new HttpError(400, "RESTOCK quantity must be positive");
+        }
+        if (input.type === "ADJUST" && input.quantity === 0) {
+          throw new HttpError(400, "ADJUST quantity cannot be zero");
+        }
+        if (input.type === "RESTOCK" && input.unitCostMinor === undefined) {
+          throw new HttpError(400, "unitCostMinor is required for a RESTOCK");
+        }
 
-    // Movement is written FIRST: it is the source of truth and appends cleanly.
-    // The cost update on the product is a convenience cache that heals on the
-    // next restock, so a crash between the two leaves the ledger correct.
-    const unitCostMinor =
-      input.type === "RESTOCK" ? input.unitCostMinor! : (input.unitCostMinor ?? product.costMinor);
+        // Movement is written FIRST: it is the source of truth and appends
+        // cleanly. The cost update on the product is a convenience cache that
+        // heals on the next restock, so a crash between the two leaves the
+        // ledger correct.
+        const unitCostMinor =
+          input.type === "RESTOCK"
+            ? input.unitCostMinor!
+            : (input.unitCostMinor ?? product.costMinor);
 
-    const movement = await scoped.stockMovement.create({
-      data: {
-        tenantId: auth.tenantId,
-        productId: id,
-        type: input.type,
-        quantity: input.quantity,
-        unitCostMinor,
-        note: input.note,
+        const movement = await tx.stockMovement.create({
+          data: {
+            tenantId: auth.tenantId,
+            productId: id,
+            type: input.type,
+            quantity: input.quantity,
+            unitCostMinor,
+            note: input.note,
+          },
+          select: movementFields,
+        });
+
+        if (input.type === "RESTOCK") {
+          await tx.product.updateMany({ where: { id }, data: { costMinor: unitCostMinor } });
+        }
+
+        return { movement, stockQty: await stockQty(tx, id) };
       },
-      select: movementFields,
-    });
+    );
 
-    if (input.type === "RESTOCK") {
-      await scoped.product.updateMany({ where: { id }, data: { costMinor: unitCostMinor } });
-    }
-
-    res.status(201).json({ movement, stockQty: await stockQty(scoped, id) });
+    res.status(201).json(result);
   }),
 );
 

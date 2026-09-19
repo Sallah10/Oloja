@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo/ui": "~57.0.18",
+    "@expo/vector-icons": "^15.0.2",
     "@tanstack/react-query": "^5.103.1",
     "expo": "~57.0.22",
     "expo-constants": "~57.0.18",
@@ -14,6 +15,7 @@
     "expo-linking": "~57.0.10",
     "expo-router": "~57.0.21",
     "expo-splash-screen": "~57.0.9",
+    "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.3",
     "expo-system-ui": "~57.0.4",

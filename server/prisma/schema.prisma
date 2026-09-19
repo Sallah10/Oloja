@@ -52,6 +52,7 @@ model Tenant {
   transactions   Transaction[]
   stockMovements StockMovement[]
   debtEntries    DebtEntry[]
+  idempotencyRecords IdempotencyRecord[]
 }
 
 // One owner account per shop (tenant) for v1. Adding more roles later is
@@ -188,4 +189,24 @@ model DebtEntry {
   createdAt     DateTime @default(now())
 
   @@index([tenantId, customerId, createdAt])
+}
+
+// Offline support: every mutation the app can make without a connection carries
+// an idempotencyKey (a client-generated UUID). The key+response is stored here
+// FIRST TIME only; a re-sent/retried request with the same key gets the stored
+// response back instead of being applied twice. This is what makes the mobile
+// outbox safe to replay after a reconnect. tenantId is stamped/scoped exactly
+// like every other row (rule #2).
+model IdempotencyRecord {
+  id             String   @id @default(cuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  idempotencyKey String
+  method         String
+  path           String
+  responseJson   String
+  createdAt      DateTime @default(now())
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, createdAt])
 }

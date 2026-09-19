@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { debtBalance } from "../lib/debt.js";
 import { HttpError, asyncHandler } from "../lib/http-error.js";
+import { runIdempotent } from "../lib/idempotency.js";
 import { tenantScoped } from "../lib/scoped.js";
 import { AuthedRequest, requireAuth } from "../middleware/auth.js";
 
@@ -36,6 +37,7 @@ const idParam = z.object({ id: z.string().min(1) });
 const createSchema = z.object({
   name: z.string().trim().min(1).max(80),
   phone: z.string().trim().max(24).optional(),
+  idempotencyKey: z.string().min(8).max(128).optional(),
 });
 
 const updateSchema = z.object({
@@ -87,14 +89,24 @@ customersRouter.post(
   asyncHandler(async (req, res) => {
     const scoped = scopedFor(req as AuthedRequest);
     const auth = (req as AuthedRequest).auth;
-    const input = createSchema.parse(req.body);
+    const { idempotencyKey, ...input } = createSchema.parse(req.body);
 
-    const customer = await scoped.customer.create({
-      // tenantId explicit for the types; the scoped hook overwrites regardless.
-      data: { tenantId: auth.tenantId, ...input },
-      select: customerFields,
-    });
-    res.status(201).json({ ...customer, debtMinor: 0 });
+    const customer = await runIdempotent(
+      scoped,
+      auth.tenantId,
+      idempotencyKey,
+      "POST",
+      "/api/customers",
+      async (tx) => {
+        const created = await tx.customer.create({
+          // tenantId explicit for the types; the scoped hook overwrites regardless.
+          data: { tenantId: auth.tenantId, ...input },
+          select: customerFields,
+        });
+        return { ...created, debtMinor: 0 };
+      },
+    );
+    res.status(201).json(customer);
   }),
 );
 

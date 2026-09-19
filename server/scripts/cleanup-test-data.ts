@@ -5,8 +5,10 @@ import "dotenv/config";
 
 import { db } from "../src/lib/db.js";
 
+const prefixes = ["Inv-", "Probe-", "Dbg-", "Idp-"];
+
 const result = await db.tenant.deleteMany({
-  where: { name: { startsWith: "Inv-" } },
+  where: { OR: prefixes.map((prefix) => ({ name: { startsWith: prefix } })) },
 });
 
 console.log(`Deleted ${result.count} smoke-test tenant(s).`);
