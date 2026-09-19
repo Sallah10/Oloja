@@ -17,6 +17,7 @@ function pass(label: string) {
 }
 
 async function main() {
+  const totalBefore = await db.product.count();
   const tenantA = await mkTenant("Scope-A");
   const tenantB = await mkTenant("Scope-B");
 
@@ -24,17 +25,20 @@ async function main() {
     const a = tenantScoped(tenantA.id);
     const b = tenantScoped(tenantB.id);
 
-    // Creates: tenantId NOT in the input, so stamping is what makes these work.
+    // Creates: we deliberately pass a SPOOFED tenantId. The hook must
+    // overwrite it with the scoped tenant, so this also proves a caller can
+    // never smuggle a row into someone else's shop.
+    const spoof = "spoofed-tenant-id";
     const rose = await a.product.create({
-      data: { name: "Rose Gold", priceMinor: 12500, costMinor: 8000 },
+      data: { tenantId: spoof, name: "Rose Gold", priceMinor: 12500, costMinor: 8000 },
     });
     await a.product.create({
-      data: { name: "Oud Intense", priceMinor: 16000, costMinor: 10500 },
+      data: { tenantId: spoof, name: "Oud Intense", priceMinor: 16000, costMinor: 10500 },
     });
     await b.product.createMany({
       data: [
-        { name: "Mint Soap", priceMinor: 2500, costMinor: 1200 },
-        { name: "Lemon Soap", priceMinor: 2500, costMinor: 1200 },
+        { tenantId: spoof, name: "Mint Soap", priceMinor: 2500, costMinor: 1200 },
+        { tenantId: spoof, name: "Lemon Soap", priceMinor: 2500, costMinor: 1200 },
       ],
     });
 
@@ -45,11 +49,15 @@ async function main() {
     assert.equal(stored?.tenantId, tenantA.id, "created row must carry tenant A's id");
     pass("created rows carry the scoping tenant's tenantId");
 
+    const smuggled = await db.product.count({ where: { tenantId: spoof } });
+    assert.equal(smuggled, 0, "no row may keep the spoofed tenantId");
+    pass("a spoofed tenantId in the input is overwritten by the hook");
+
     assert.equal((await b.product.count()), 2, "B should see exactly its own 2 products");
     pass("scoped(B).product.count() == 2, isolated from A's data");
 
-    assert.equal((await db.product.count()), 4, "DB total should be 4 between both");
-    pass("unscoped total == 4 (rows really persisted)");
+    assert.equal((await db.product.count()), totalBefore + 4, "DB total should grow by our 4");
+    pass("unscoped total grows by exactly our 4 rows (relative, not absolute)");
 
     const notFound = await b.product.findFirst({ where: { id: rose.id } });
     assert.equal(notFound, null, "B must not read A's product by id");
@@ -63,18 +71,20 @@ async function main() {
       pass("scoped findUnique() is rejected loudly (use findFirst instead)");
     }
 
-    for (const op of ["update", "delete"] as const) {
-      try {
-        await b.product[op]({ where: { id: rose.id }, data: { name: "HACKED" } });
-        throw new Error(`expected scoped ${op}() to be rejected`);
-      } catch (err) {
-        assert.match(
-          String(err),
-          new RegExp(`use ${op}Many`),
-          `scoped ${op}() must refuse to run`,
-        );
-        pass(`scoped ${op}() is rejected loudly (use ${op}Many with id in where)`);
-      }
+    try {
+      await b.product.update({ where: { id: rose.id }, data: { name: "HACKED" } });
+      throw new Error("expected scoped update() to be rejected");
+    } catch (err) {
+      assert.match(String(err), /use updateMany/, "scoped update must refuse to run");
+      pass("scoped update() is rejected loudly (use updateMany with id in where)");
+    }
+
+    try {
+      await b.product.delete({ where: { id: rose.id } });
+      throw new Error("expected scoped delete() to be rejected");
+    } catch (err) {
+      assert.match(String(err), /use deleteMany/, "scoped delete must refuse to run");
+      pass("scoped delete() is rejected loudly (use deleteMany with id in where)");
     }
 
     const hack = await b.product.updateMany({ where: { id: rose.id }, data: { name: "HACKED" } });
@@ -96,6 +106,16 @@ async function main() {
       "A sees exactly its own list",
     );
     pass("scoped(A).product.findMany() returns only A's products");
+
+    // Critical for sales: money moves must be atomic (a $transaction). If the
+    // tenant-injection hooks did NOT fire inside interactive transactions, an
+    // atomic write could silently touch the wrong tenant. So assert they do.
+    let txCount = -1;
+    await a.$transaction(async (tx) => {
+      txCount = await tx.product.count({ where: {} });
+    });
+    assert.equal(txCount, 2, "scoped hooks must run inside $transaction (2, not 4)");
+    pass("scoped hooks fire inside interactive $transaction (tx sees only A's rows)");
 
     console.log("\nAll tenant-isolation checks passed.");
   } finally {

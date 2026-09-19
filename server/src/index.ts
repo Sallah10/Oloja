@@ -6,6 +6,9 @@ import { z } from "zod";
 
 import { HttpError } from "./lib/http-error.js";
 import { authRouter } from "./routes/auth.routes.js";
+import { customersRouter } from "./routes/customers.routes.js";
+import { productsRouter } from "./routes/products.routes.js";
+import { salesRouter } from "./routes/sales.routes.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
@@ -18,6 +21,9 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/auth", authRouter);
+app.use("/api", productsRouter);
+app.use("/api", customersRouter);
+app.use("/api", salesRouter);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

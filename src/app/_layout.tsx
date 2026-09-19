@@ -6,6 +6,7 @@ import { useState } from "react";
 import "@/global.css";
 
 import { Colors } from "@/constants/theme";
+import { AuthProvider } from "@/context/auth-context";
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -35,12 +36,15 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider value={navigationTheme}>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-        </Stack>
-      </ThemeProvider>
+      <AuthProvider>
+        <ThemeProvider value={navigationTheme}>
+          <StatusBar style="dark" />
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="login" />
+          </Stack>
+        </ThemeProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
