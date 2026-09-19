@@ -10,18 +10,7 @@ import { useAuth } from "@/context/auth-context";
 import { api, ApiError } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { formatMoney, toMinorUnits } from "@/lib/money";
-
-type ProductSummary = {
-  id: string;
-  name: string;
-  note: string | null;
-  priceMinor: number;
-  costMinor: number;
-  lowStockThreshold: number;
-  archived: boolean;
-  createdAt: string;
-  stockQty: number;
-};
+import { ProductSummary } from "@/lib/types";
 
 export default function InventoryScreen() {
   const { tenant, signOut } = useAuth();
