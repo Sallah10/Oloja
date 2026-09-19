@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { ReactNode } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { AmountText } from "@/components/ui/amount-text";
 import { Button } from "@/components/ui/button";
 import { Screen } from "@/components/ui/screen";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/cn";
 import { CustomerSummary, ProductSummary } from "@/lib/types";
 
 function StatRow({ label, value }: { label: string; value: ReactNode }) {
@@ -17,6 +18,17 @@ function StatRow({ label, value }: { label: string; value: ReactNode }) {
       {value}
     </View>
   );
+}
+
+function RoleChip() {
+  const { role } = useAuth();
+  const tone =
+    role === "OWNER"
+      ? "bg-accent/10 text-accent"
+      : role === "STAFF"
+        ? "bg-[#E8E2D6] text-ink"
+        : "bg-[#EFEAE0] text-ink-soft";
+  return <Text className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", tone)}>{role}</Text>;
 }
 
 export default function DashboardScreen() {
@@ -46,10 +58,13 @@ export default function DashboardScreen() {
 
   return (
     <Screen>
-      <View className="mt-2">
-        <Text className="text-[11px] uppercase tracking-widest text-ink-faint">{tenant?.name}</Text>
-        <Text className="mt-1 text-2xl font-semibold text-ink">Shop overview</Text>
-        <Text className="mt-0.5 text-sm capitalize text-ink-soft">{today}</Text>
+      <View className="mt-2 flex-row items-center justify-between">
+        <View>
+          <Text className="text-[11px] uppercase tracking-widest text-ink-faint">{tenant?.name}</Text>
+          <Text className="mt-1 text-2xl font-semibold text-ink">Shop overview</Text>
+          <Text className="mt-0.5 text-sm capitalize text-ink-soft">{today}</Text>
+        </View>
+        <RoleChip />
       </View>
 
       <View className="mt-6 rounded-lg border border-line bg-paper-card">
@@ -84,6 +99,22 @@ export default function DashboardScreen() {
       <View className="mt-6">
         <Button title="Record a sale" onPress={() => router.navigate("/sales")} />
       </View>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push("/settings")}
+        className="mt-4 rounded-lg border border-line bg-paper-card p-4">
+        <View className="flex-row items-center justify-between">
+          <View>
+            <Text className="text-sm font-medium text-ink">Shop settings</Text>
+            <Text className="mt-0.5 text-xs text-ink-soft">
+              Switch shops, invite team members, manage access.
+            </Text>
+          </View>
+          <Text className="text-lg text-accent">›</Text>
+        </View>
+      </Pressable>
+
       <Text className="mt-3 text-xs text-ink-faint">
         Every sale is written straight into your ledger. Balances are never edited, only added to.
       </Text>

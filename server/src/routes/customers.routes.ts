@@ -5,7 +5,7 @@ import { debtBalance } from "../lib/debt.js";
 import { HttpError, asyncHandler } from "../lib/http-error.js";
 import { runIdempotent } from "../lib/idempotency.js";
 import { tenantScoped } from "../lib/scoped.js";
-import { AuthedRequest, requireAuth } from "../middleware/auth.js";
+import { AuthedRequest, NOT_VIEW, requireAuth, requireRole } from "../middleware/auth.js";
 
 export const customersRouter = Router();
 
@@ -86,6 +86,7 @@ customersRouter.get(
 
 customersRouter.post(
   "/customers",
+  requireRole(...NOT_VIEW),
   asyncHandler(async (req, res) => {
     const scoped = scopedFor(req as AuthedRequest);
     const auth = (req as AuthedRequest).auth;
@@ -112,6 +113,7 @@ customersRouter.post(
 
 customersRouter.patch(
   "/customers/:id",
+  requireRole(...NOT_VIEW),
   asyncHandler(async (req, res) => {
     const scoped = scopedFor(req as AuthedRequest);
     const { id } = idParam.parse(req.params);

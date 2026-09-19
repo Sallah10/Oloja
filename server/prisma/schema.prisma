@@ -38,6 +38,16 @@ enum DebtEntryType {
   ADJUST // forgiveness or correction (+/-)
 }
 
+// What a person can do in a shop. OWNER runs the shop; STAFF sells, takes
+// payments, gives credit and moves stock, but can't create/delete products or
+// manage members; VIEW can look at everything but touch nothing (e.g. an
+// accountant or the curious owner of a second shop).
+enum MembershipRole {
+  OWNER
+  STAFF
+  VIEW
+}
+
 model Tenant {
   id       String  @id @default(cuid())
   name     String
@@ -45,47 +55,79 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users          User[]
-  sessions       Session[]
-  products       Product[]
-  customers      Customer[]
-  transactions   Transaction[]
-  stockMovements StockMovement[]
-  debtEntries    DebtEntry[]
+  memberships        UserTenant[]
+  sessions           Session[]
+  invitations        Invitation[]
+  products           Product[]
+  customers          Customer[]
+  transactions       Transaction[]
+  stockMovements     StockMovement[]
+  debtEntries        DebtEntry[]
   idempotencyRecords IdempotencyRecord[]
 }
 
-// One owner account per shop (tenant) for v1. Adding more roles later is
-// additive: a title field and an invite flow, not a schema redesign.
+// Phase 6: a person belongs to ANY number of shops, with a role per shop.
+// UserTenant is the join — one row per (user, shop). The "active shop" is a
+// per-session choice (see Session + POST /auth/switch-shop), not user data.
 model User {
   id           String    @id @default(cuid())
-  tenantId     String
-  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name         String
   email        String    @unique
   passwordHash String
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  sessions Session[]
+  memberships UserTenant[]
+  sessions    Session[]
+}
 
+// A person + a shop + what they're allowed to do there. On register the owner
+// membership is created; everyone else enters via an invitation code.
+model UserTenant {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role      MembershipRole @default(STAFF)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, tenantId])
   @@index([tenantId])
 }
 
-// Revocable login. tokenHash stores SHA-256(rawToken); we never keep the raw
-// token in the DB. Login writes a row here, /auth/logout deletes it.
+// Revocable, per-shop login. tokenHash stores SHA-256(rawToken); we never keep
+// the raw token in the DB. A user can hold one session per shop they belong
+// to; the token's tenantId is WHICH SHOP IS OPEN right now. /auth/logout
+// deletes the current session, /auth/switch-shop mints one for another shop.
 model Session {
-  id     String @id @default(cuid())
+  id       String @id @default(cuid())
   tenantId String
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   tokenHash String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
 
   @@index([tenantId, userId])
+}
+
+// One disposable way INTO a shop. The owner mints a short-lived 8-char code
+// and shares it any way they like; whoever enters it becomes a STAFF member.
+// code is globally unique so accept-by-code is a single, safe lookup.
+model Invitation {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code        String    @unique
+  createdById String
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  usedAt      DateTime?
+
+  @@index([tenantId, createdAt])
 }
 
 model Product {

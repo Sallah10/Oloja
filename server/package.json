@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "scope:check": "tsx scripts/scope-check.ts",
     "idempotency:check": "tsx scripts/idempotency-check.ts",
+    "phase6:check": "tsx scripts/phase6-check.ts",
     "db:clean": "tsx scripts/cleanup-test-data.ts",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",

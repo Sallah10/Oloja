@@ -7,6 +7,7 @@ import {
   resetOffline,
 } from "@/lib/offline";
 import { clearSession as clearStoredSession, loadSession, saveSession } from "@/lib/session";
+import { MembershipRole, TenantMembership } from "@/lib/types";
 
 export type AuthUser = {
   id: string;
@@ -23,6 +24,7 @@ type Session = {
   token: string;
   user: AuthUser;
   tenant: AuthTenant;
+  tenants: TenantMembership[];
 };
 
 type SignUpInput = {
@@ -35,11 +37,17 @@ type SignUpInput = {
 type AuthContextValue = {
   user: AuthUser | null;
   tenant: AuthTenant | null;
+  tenants: TenantMembership[];
+  role: MembershipRole | null;
   isSignedIn: boolean;
   isRestoring: boolean;
+  isOwner: boolean;
+  canTransact: boolean;
+  canManageProducts: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (input: SignUpInput) => Promise<void>;
   signOut: () => Promise<void>;
+  switchShop: (tenantId: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -47,18 +55,21 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [tenant, setTenant] = useState<AuthTenant | null>(null);
+  const [tenants, setTenants] = useState<TenantMembership[]>([]);
   const [isRestoring, setIsRestoring] = useState(true);
 
   const applySession = useCallback((session: Session) => {
     setAuthToken(session.token);
     setUser(session.user);
     setTenant(session.tenant);
+    setTenants(session.tenants ?? []);
   }, []);
 
   const clearUser = useCallback(() => {
     setAuthToken(null);
     setUser(null);
     setTenant(null);
+    setTenants([]);
   }, []);
 
   // Cold start: if a session was saved before the app was killed, restore it
@@ -81,12 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [applySession]);
 
-  const signIn = useCallback(
-    async (email: string, password: string) => {
-      // A new session could belong to a different shop; clear this device's
-      // previous mirror/outbox so no one's data leaks across accounts.
-      await resetOffline();
-      const session = await api<Session>("/auth/login", { method: "POST", body: { email, password } });
+  const afterLogin = useCallback(
+    async (session: Session) => {
       applySession(session);
       if (!isMockMode) await saveSession(session);
       void requestSync(rawRequest);
@@ -94,15 +101,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applySession],
   );
 
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      // A new session could belong to a different shop; clear this device's
+      // previous mirror/outbox so no one's data leaks across accounts.
+      await resetOffline();
+      const session = await api<Session>("/auth/login", { method: "POST", body: { email, password } });
+      await afterLogin(session);
+    },
+    [afterLogin],
+  );
+
   const signUp = useCallback(
     async (input: SignUpInput) => {
       await resetOffline();
       const session = await api<Session>("/auth/register", { method: "POST", body: input });
-      applySession(session);
-      if (!isMockMode) await saveSession(session);
-      void requestSync(rawRequest);
+      await afterLogin(session);
     },
-    [applySession],
+    [afterLogin],
   );
 
   const signOut = useCallback(async () => {
@@ -113,17 +129,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!isMockMode) await clearStoredSession();
   }, [clearUser]);
 
+  // Open a different shop the account already belongs to. The server mints a
+  // session scoped to it; mirror/outbox reset so nobody "carries" shop B's
+  // cache into shop A, then a sync round re-captures the new shop's data.
+  const switchShop = useCallback(
+    async (tenantId: string) => {
+      if (tenantId === tenant?.id) return;
+      const session = await api<Session>("/auth/switch-shop", { method: "POST", body: { tenantId } });
+      await resetOffline();
+      await afterLogin(session);
+    },
+    [tenant?.id, afterLogin],
+  );
+
+  const role = useMemo(
+    () => (tenant ? (tenants.find((t) => t.tenantId === tenant.id)?.role ?? null) : null),
+    [tenant, tenants],
+  );
+
   const value = useMemo(
     () => ({
       user,
       tenant,
+      tenants,
+      role,
       isSignedIn: user !== null,
       isRestoring,
+      isOwner: role === "OWNER",
+      canTransact: role === "OWNER" || role === "STAFF",
+      canManageProducts: role === "OWNER",
       signIn,
       signUp,
       signOut,
+      switchShop,
     }),
-    [user, tenant, isRestoring, signIn, signUp, signOut],
+    [user, tenant, tenants, role, isRestoring, signIn, signUp, signOut, switchShop],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -42,3 +42,28 @@ export type DebtEntry = {
   transactionId: string | null;
   createdAt: string;
 };
+
+// Phase 6: multi-shop onboarding. A person belongs to any number of shops,
+// each with its own role. OWNER runs the shop; STAFF sells, takes payments,
+// gives credit and moves stock; VIEW can read but not touch.
+export type MembershipRole = "OWNER" | "STAFF" | "VIEW";
+
+export type TenantMembership = {
+  tenantId: string;
+  name: string;
+  role: MembershipRole;
+};
+
+export type InviteInfo = {
+  code: string;
+  expiresAt: string;
+};
+
+export type ShopMember = {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: MembershipRole;
+  joinedAt: string;
+};

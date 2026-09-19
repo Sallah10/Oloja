@@ -5,7 +5,7 @@ import { debtBalance } from "../lib/debt.js";
 import { HttpError, asyncHandler } from "../lib/http-error.js";
 import { runIdempotent } from "../lib/idempotency.js";
 import { TenantScopedClient, tenantScoped } from "../lib/scoped.js";
-import { AuthedRequest, requireAuth } from "../middleware/auth.js";
+import { AuthedRequest, NOT_VIEW, requireAuth, requireRole } from "../middleware/auth.js";
 
 export const salesRouter = Router();
 
@@ -59,6 +59,7 @@ async function stockQty(scoped: { stockMovement: TenantScopedClient["stockMoveme
 
 salesRouter.post(
   "/sales",
+  requireRole(...NOT_VIEW),
   asyncHandler(async (req, res) => {
     const scoped = scopedFor(req as AuthedRequest);
     const auth = (req as AuthedRequest).auth;
@@ -145,6 +146,7 @@ salesRouter.post(
 
 salesRouter.post(
   "/payments",
+  requireRole(...NOT_VIEW),
   asyncHandler(async (req, res) => {
     const scoped = scopedFor(req as AuthedRequest);
     const auth = (req as AuthedRequest).auth;

@@ -1,10 +1,11 @@
+import { MembershipRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 
 import { HttpError, asyncHandler } from "../lib/http-error.js";
 import { runIdempotent } from "../lib/idempotency.js";
 import { TenantScopedClient, tenantScoped } from "../lib/scoped.js";
-import { AuthedRequest, requireAuth } from "../middleware/auth.js";
+import { AuthedRequest, NOT_VIEW, requireAuth, requireRole } from "../middleware/auth.js";
 
 export const productsRouter = Router();
 
@@ -114,6 +115,7 @@ productsRouter.get(
 
 productsRouter.post(
   "/products",
+  requireRole(MembershipRole.OWNER),
   asyncHandler(async (req, res) => {
     const scoped = scopedFor(req as AuthedRequest);
     const auth = (req as AuthedRequest).auth;
@@ -141,6 +143,7 @@ productsRouter.post(
 
 productsRouter.patch(
   "/products/:id",
+  requireRole(MembershipRole.OWNER),
   asyncHandler(async (req, res) => {
     const scoped = scopedFor(req as AuthedRequest);
     const { id } = idParam.parse(req.params);
@@ -158,6 +161,7 @@ productsRouter.patch(
 
 productsRouter.post(
   "/products/:id/stock",
+  requireRole(...NOT_VIEW),
   asyncHandler(async (req, res) => {
     const scoped = scopedFor(req as AuthedRequest);
     const auth = (req as AuthedRequest).auth;

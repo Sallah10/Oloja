@@ -7,6 +7,7 @@ import { z } from "zod";
 import { HttpError } from "./lib/http-error.js";
 import { authRouter } from "./routes/auth.routes.js";
 import { customersRouter } from "./routes/customers.routes.js";
+import { invitesRouter } from "./routes/invites.routes.js";
 import { productsRouter } from "./routes/products.routes.js";
 import { salesRouter } from "./routes/sales.routes.js";
 
@@ -21,6 +22,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/auth", authRouter);
+app.use("/api/invites", invitesRouter);
 app.use("/api", productsRouter);
 app.use("/api", customersRouter);
 app.use("/api", salesRouter);

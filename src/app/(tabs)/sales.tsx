@@ -8,7 +8,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Screen } from "@/components/ui/screen";
 import { useAuth } from "@/context/auth-context";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { ApiError } from "@/lib/errors";
 import { cn } from "@/lib/cn";
 import { formatMoney, toMinorUnits } from "@/lib/money";
 import { formatDateTime } from "@/lib/time";
@@ -17,7 +18,7 @@ import { CustomerSummary, ProductSummary, TransactionSummary } from "@/lib/types
 type PayMode = "cash" | "credit";
 
 export default function SalesScreen() {
-  const { tenant } = useAuth();
+  const { tenant, canTransact } = useAuth();
   const queryClient = useQueryClient();
 
   const [recording, setRecording] = useState(false);
@@ -114,12 +115,18 @@ export default function SalesScreen() {
         <Text className="mt-1 text-2xl font-semibold text-ink">Sales</Text>
       </View>
 
-      <Button
-        title={recording ? "Hide sale form" : "＋ Record a sale"}
-        variant="secondary"
-        onPress={() => setRecording(!recording)}
-        className="mt-4 self-start"
-      />
+      {canTransact ? (
+        <Button
+          title={recording ? "Hide sale form" : "＋ Record a sale"}
+          variant="secondary"
+          onPress={() => setRecording(!recording)}
+          className="mt-4 self-start"
+        />
+      ) : (
+        <Text className="mt-4 text-xs font-medium text-ink-soft">
+          Read-only access in this shop - you can watch sales but not record them.
+        </Text>
+      )}
 
       {recording ? (
         <View className="mt-4 gap-4 rounded-lg border border-line bg-paper-card p-4">

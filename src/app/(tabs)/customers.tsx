@@ -8,13 +8,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Screen } from "@/components/ui/screen";
 import { useAuth } from "@/context/auth-context";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { ApiError } from "@/lib/errors";
 import { toMinorUnits } from "@/lib/money";
 import { formatDateTime } from "@/lib/time";
 import { CustomerSummary, DebtEntry } from "@/lib/types";
 
 export default function CustomersScreen() {
-  const { tenant } = useAuth();
+  const { tenant, canTransact } = useAuth();
   const queryClient = useQueryClient();
 
   const [addOpen, setAddOpen] = useState(false);
@@ -131,14 +132,14 @@ export default function CustomersScreen() {
             <Button title="Cancel" variant="secondary" onPress={() => setAddOpen(false)} />
           </View>
         </View>
-      ) : (
+      ) : canTransact ? (
         <Button
           title="＋ Add customer"
           variant="secondary"
           onPress={() => setAddOpen(true)}
           className="mt-4 self-start"
         />
-      )}
+      ) : null}
 
       <Text className="mt-6 mb-2 text-[11px] uppercase tracking-widest text-ink-faint">
         What your customers owe
@@ -226,7 +227,7 @@ export default function CustomersScreen() {
                           />
                         </View>
                       </View>
-                    ) : (
+                    ) : canTransact ? (
                       <Button
                         title="Record a payment"
                         variant="secondary"
@@ -237,7 +238,7 @@ export default function CustomersScreen() {
                         }}
                         className="self-start"
                       />
-                    )}
+                    ) : null}
 
                     <Text className="mt-4 mb-1 text-[11px] uppercase tracking-widest text-ink-faint">
                       Debt ledger

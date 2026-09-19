@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Screen } from "@/components/ui/screen";
 import { useAuth } from "@/context/auth-context";
-import { ApiError, isMockMode } from "@/lib/api";
+import { ApiError } from "@/lib/errors";
+import { isMockMode } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 export default function LoginScreen() {

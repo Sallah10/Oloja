@@ -7,13 +7,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Screen } from "@/components/ui/screen";
 import { useAuth } from "@/context/auth-context";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { ApiError } from "@/lib/errors";
 import { cn } from "@/lib/cn";
 import { formatMoney, toMinorUnits } from "@/lib/money";
 import { ProductSummary } from "@/lib/types";
 
 export default function InventoryScreen() {
-  const { tenant, signOut } = useAuth();
+  const { tenant, canManageProducts, canTransact } = useAuth();
   const queryClient = useQueryClient();
 
   const [addOpen, setAddOpen] = useState(false);
@@ -105,7 +106,6 @@ export default function InventoryScreen() {
           </Text>
           <Text className="mt-1 text-2xl font-semibold text-ink">Inventory</Text>
         </View>
-        <Button title="Sign out" variant="ghost" onPress={() => void signOut()} />
       </View>
 
       {addOpen ? (
@@ -144,14 +144,18 @@ export default function InventoryScreen() {
             <Button title="Cancel" variant="secondary" onPress={() => setAddOpen(false)} />
           </View>
         </View>
-      ) : (
+      ) : canManageProducts ? (
         <Button
           title="＋ Add product"
           variant="secondary"
           onPress={() => setAddOpen(true)}
           className="mt-4 self-start"
         />
-      )}
+      ) : !canTransact ? (
+        <Text className="mt-4 text-xs font-medium text-ink-soft">
+          Read-only access in this shop - you can watch stock but not change it.
+        </Text>
+      ) : null}
 
       {isError ? (
         <EmptyState
@@ -236,7 +240,7 @@ export default function InventoryScreen() {
                       />
                     </View>
                   </View>
-                ) : (
+                ) : canTransact ? (
                   <Button
                     title="Restock"
                     variant="secondary"
@@ -246,7 +250,7 @@ export default function InventoryScreen() {
                     }}
                     className="mt-3 self-start"
                   />
-                )}
+                ) : null}
               </View>
             );
           }}

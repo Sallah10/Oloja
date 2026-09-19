@@ -38,8 +38,15 @@ function SyncInvalidator() {
   return null;
 }
 
-export default function Root() {
+// SyncBanner is inside the auth tree, but AuthProvider is rendered one level
+// up from it, so it needs its own tiny bridge component to read useAuth().
+function BannerSlot() {
   const { isSignedIn } = useAuth();
+  if (!isSignedIn) return null;
+  return <SyncBanner />;
+}
+
+export default function RootLayout() {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -63,8 +70,9 @@ export default function Root() {
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="login" />
+              <Stack.Screen name="settings" />
             </Stack>
-            {isSignedIn ? <SyncBanner /> : null}
+            <BannerSlot />
           </View>
         </ThemeProvider>
       </AuthProvider>

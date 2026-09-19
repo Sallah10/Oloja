@@ -46,3 +46,25 @@ Emitted 'error' event on Server instance at:
 }
 
 Node.js v24.11.0
+C:\Users\wd\Desktop\Oloja\server\src\routes\products.routes.ts:117
+  requireRole(MembershipRole.OWNER),
+              ^
+
+ReferenceError: MembershipRole is not defined
+    at <anonymous> (C:\Users\wd\Desktop\Oloja\server\src\routes\products.routes.ts:117:15)
+    at ModuleJob.run (node:internal/modules/esm/module_job:377:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:691:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.11.0
+C:\Users\wd\Desktop\Oloja\server\src\routes\products.routes.ts:117
+  requireRole(MembershipRole.OWNER),
+              ^
+
+ReferenceError: MembershipRole is not defined
+    at <anonymous> (C:\Users\wd\Desktop\Oloja\server\src\routes\products.routes.ts:117:15)
+    at ModuleJob.run (node:internal/modules/esm/module_job:377:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:691:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.11.0

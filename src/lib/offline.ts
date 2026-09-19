@@ -1,7 +1,7 @@
 import { AppState } from "react-native";
 import Storage from "expo-sqlite/kv-store";
 
-import { ApiError } from "./api";
+import { ApiError } from "./errors";
 import { CustomerSummary, ProductSummary, TransactionSummary } from "./types";
 
 // ---------------------------------------------------------------------------

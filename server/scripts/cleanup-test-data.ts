@@ -5,7 +5,7 @@ import "dotenv/config";
 
 import { db } from "../src/lib/db.js";
 
-const prefixes = ["Inv-", "Probe-", "Dbg-", "Idp-"];
+const prefixes = ["Inv-", "Probe", "Probe-", "Dbg-", "Idp-", "Shop6-"];
 
 const result = await db.tenant.deleteMany({
   where: { OR: prefixes.map((prefix) => ({ name: { startsWith: prefix } })) },

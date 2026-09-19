@@ -4,7 +4,8 @@
 // can click through the whole app before your phone can reach the API.
 // Flip the env variable back to false to talk to the real backend.
 
-import { ApiError } from "./api";
+import { ApiError } from "./errors";
+import { MembershipRole } from "./types";
 
 type MockOptions = { method?: string; body?: unknown };
 
@@ -63,6 +64,17 @@ type MockTransaction = {
 
 let seq = 0;
 const nid = (prefix: string) => `${prefix}-${++seq}`;
+
+// Invite codes mirror the server: 8 chars from an alphabet that skips
+// I/O/0/1 so a handwritten code can't be misread as something else.
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function mockInviteCode(): string {
+  let code = "";
+  for (let i = 0; i < 8; i++) {
+    code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+  }
+  return code;
+}
 const iso = () => new Date().toISOString();
 
 let seeded = false;
@@ -71,6 +83,46 @@ const customers: MockCustomer[] = [];
 const debtEntries: MockDebtEntry[] = [];
 const transactions: MockTransaction[] = [];
 const registeredEmails = new Set<string>();
+
+// Phase 6 demo state: the single demo account belongs to TWO shops so the
+// switcher and roles are clickable without a real server. The ledger arrays
+// above are shared by both shops - a demo simplification, not a server one.
+type MockMembership = { tenantId: string; name: string; role: MembershipRole };
+const mockMemberships: MockMembership[] = [
+  { tenantId: "t-1", name: "The Perfume Stall", role: "OWNER" },
+  { tenantId: "t-2", name: "Lagos Showroom", role: "STAFF" },
+];
+let mockActiveTenantId = "t-1";
+
+let mockInvite: { code: string; expiresAt: string } | null = {
+  code: "STALL7KD",
+  expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+};
+
+const mockMembers: { id: string; userId: string; name: string; email: string; role: MembershipRole; joinedAt: string }[] = [
+  { id: "m-1", userId: "u-1", name: "Grace Okoro", email: "demo@oloja.app", role: "OWNER", joinedAt: iso() },
+  { id: "m-2", userId: "u-2", name: "Ada Osei", email: "ada.osei@example.com", role: "STAFF", joinedAt: iso() },
+];
+
+function currentRole(): MembershipRole {
+  return mockMemberships.find((m) => m.tenantId === mockActiveTenantId)?.role ?? "VIEW";
+}
+
+function deny(required: MembershipRole[]): never {
+  throw new ApiError(403, "Forbidden");
+}
+
+function mockSession(email: string, tenantName?: string) {
+  return {
+    token: "mock-session-token",
+    user: { id: "u-1", name: "Grace Okoro", email },
+    tenant: {
+      id: mockActiveTenantId,
+      name: tenantName ?? mockMemberships.find((m) => m.tenantId === mockActiveTenantId)?.name ?? "The Perfume Stall",
+    },
+    tenants: mockMemberships,
+  };
+}
 
 function seed() {
   if (seeded) return;
@@ -225,11 +277,7 @@ export async function mockRequest<T>(path: string, options: MockOptions = {}): P
 
   if (path === "/auth/login" && method === "POST") {
     const { email } = body<{ email?: string; password?: string }>(options);
-    return json({
-      token: "mock-session-token",
-      user: { id: "u-1", name: "Grace Okoro", email: email ?? "demo@oloja.app" },
-      tenant: { id: "t-1", name: "The Perfume Stall" },
-    });
+    return json(mockSession(email ?? "demo@oloja.app"));
   }
 
   if (path === "/auth/register" && method === "POST") {
@@ -246,20 +294,80 @@ export async function mockRequest<T>(path: string, options: MockOptions = {}): P
       throw new ApiError(409, "An account with this email already exists");
     }
     registeredEmails.add(email.toLowerCase());
-    return json({
-      token: "mock-session-token",
-      user: { id: "u-1", name: ownerName, email },
-      tenant: { id: "t-1", name: tenantName },
-    });
+    mockActiveTenantId = "t-1";
+    return json(mockSession(email, tenantName));
   }
 
   if (path === "/auth/logout" && method === "POST") return json({ ok: true });
+
+  if (path === "/auth/me" && method === "GET") {
+    return json({
+      user: { id: "u-1", name: "Grace Okoro", email: "demo@oloja.app" },
+      tenant: mockMemberships.find((m) => m.tenantId === mockActiveTenantId) ?? mockMemberships[0],
+      tenants: mockMemberships,
+    });
+  }
+
+  if (path === "/auth/switch-shop" && method === "POST") {
+    const { tenantId } = body<{ tenantId?: string }>(options);
+    const membership = mockMemberships.find((m) => m.tenantId === tenantId);
+    if (!membership) throw new ApiError(403, "You don't belong to that shop");
+    mockActiveTenantId = membership.tenantId;
+    return json(mockSession("demo@oloja.app"));
+  }
+
+  // ---- Phase 6: invites (owner-only management, any-member accept) ---------
+
+  if (path === "/api/invites" && method === "GET") {
+    if (currentRole() !== "OWNER") deny(["OWNER"]);
+    return json({ invite: mockInvite, members: mockMembers });
+  }
+
+  if (path === "/api/invites" && method === "POST") {
+    if (currentRole() !== "OWNER") deny(["OWNER"]);
+    mockInvite = {
+      code: mockInviteCode(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    return json(mockInvite);
+  }
+
+  const memberMatch = path.match(/^\/api\/invites\/members\/([^/]+)$/);
+  if (memberMatch && (method === "PATCH" || method === "DELETE")) {
+    if (currentRole() !== "OWNER") deny(["OWNER"]);
+    const member = mockMembers.find((m) => m.id === memberMatch[1]);
+    if (!member) throw new ApiError(404, "Member not found");
+    if (member.role === "OWNER") {
+      throw new ApiError(400, memberMatch[1] === "m-1" ? "The shop owner can't be removed" : "The shop owner's role can't be changed");
+    }
+    if (method === "DELETE") {
+      mockMembers.splice(mockMembers.indexOf(member), 1);
+      return json({ ok: true });
+    }
+    const { role } = body<{ role?: MembershipRole }>(options);
+    member.role = role ?? "STAFF";
+    return json({ ok: true, role: member.role });
+  }
+
+  if (path === "/api/invites/accept" && method === "POST") {
+    const { code } = body<{ code?: string }>(options);
+    if (!code) bad("Invalid input");
+    const matches = mockInvite && code.toUpperCase() === mockInvite.code;
+    if (!matches) throw new ApiError(404, "That invite code doesn't exist");
+    if (mockMemberships.some((m) => m.tenantId === "t-3")) {
+      throw new ApiError(410, "That invite code has already been used");
+    }
+    mockMemberships.push({ tenantId: "t-3", name: "Invite Demo", role: "STAFF" });
+    const tenant = { id: "t-3", name: "Invite Demo" };
+    return json({ tenant, role: "STAFF" });
+  }
 
   if (path === "/api/products" && method === "GET") {
     return json({ products: products.map(publicProduct) });
   }
 
   if (path === "/api/products" && method === "POST") {
+    if (currentRole() !== "OWNER") deny(["OWNER"]);
     const input = body<{ name: string; priceMinor: number; costMinor: number; lowStockThreshold?: number }>(options);
     if (!input.name?.trim()) bad("Invalid input");
     const product: MockProduct = {
@@ -285,6 +393,7 @@ export async function mockRequest<T>(path: string, options: MockOptions = {}): P
   }
 
   if (productMatch && method === "PATCH") {
+    if (currentRole() !== "OWNER") deny(["OWNER"]);
     const product = products.find((p) => p.id === productMatch[1]);
     if (!product) throw new ApiError(404, "Product not found");
     const input = body<Record<string, unknown>>(options);
@@ -298,6 +407,7 @@ export async function mockRequest<T>(path: string, options: MockOptions = {}): P
 
   const stockMatch = path.match(re.productStock);
   if (stockMatch && method === "POST") {
+    if (currentRole() === "VIEW") deny(["OWNER", "STAFF"]);
     const product = products.find((p) => p.id === stockMatch[1]);
     if (!product) throw new ApiError(404, "Product not found");
     const input = body<{ type: string; quantity: number; unitCostMinor?: number; note?: string }>(options);
@@ -356,6 +466,7 @@ export async function mockRequest<T>(path: string, options: MockOptions = {}): P
   }
 
   if (path === "/api/customers" && method === "POST") {
+    if (currentRole() === "VIEW") deny(["OWNER", "STAFF"]);
     const input = body<{ name: string; phone?: string }>(options);
     if (!input.name?.trim()) bad("Invalid input");
     const customer = {
@@ -377,6 +488,7 @@ export async function mockRequest<T>(path: string, options: MockOptions = {}): P
   }
 
   if (customerMatch && method === "PATCH") {
+    if (currentRole() === "VIEW") deny(["OWNER", "STAFF"]);
     const customer = customers.find((c) => c.id === customerMatch[1]);
     if (!customer) throw new ApiError(404, "Customer not found");
     const input = body<Record<string, unknown>>(options);
@@ -406,6 +518,7 @@ export async function mockRequest<T>(path: string, options: MockOptions = {}): P
   }
 
   if (path === "/api/sales" && method === "POST") {
+    if (currentRole() === "VIEW") deny(["OWNER", "STAFF"]);
     const input = body<{
       productId: string;
       quantity: number;
@@ -477,6 +590,7 @@ export async function mockRequest<T>(path: string, options: MockOptions = {}): P
   }
 
   if (path === "/api/payments" && method === "POST") {
+    if (currentRole() === "VIEW") deny(["OWNER", "STAFF"]);
     const input = body<{ customerId: string; amountMinor: number; note?: string }>(options);
     const customer = customers.find((c) => c.id === input.customerId);
     if (!customer) throw new ApiError(404, "Customer not found");
