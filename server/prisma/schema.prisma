@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Read this file top to bottom once before we write queries in a later phase.
+//
+// Rules of the ledger:
+// 1. stock_movements and debt_ledger are APPEND-ONLY event logs. Rows are
+//    never updated or deleted. Balances/stock counts are always derived by
+//    summing history. If a mistake is made, you write a corrective event
+//    (ADJUST / RETURN / PAYMENT), you never edit the past.
+// 2. All money is an integer in minor units (kobo). 1000 == N10.00.
+// 3. Every table carries tenantId. No query touches a row outside its tenant.
+// ---------------------------------------------------------------------------
+
+enum TransactionType {
+  SALE
+  PAYMENT
+}
+
+enum StockMovementType {
+  RESTOCK // goods came in (+)
+  SALE // goods went out (-)
+  ADJUST // correction, damage, spoilage (+/-)
+  RETURN // a sale or restock reversed (+/-)
+}
+
+enum DebtEntryType {
+  CREDIT // goods taken on credit: debt goes UP (+)
+  PAYMENT // money received or paid: debt goes DOWN (-)
+  ADJUST // forgiveness or correction (+/-)
+}
+
+model Tenant {
+  id       String  @id @default(cuid())
+  name     String
+  currency String  @default("NGN") // switchable later, never assume it
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products       Product[]
+  customers      Customer[]
+  transactions   Transaction[]
+  stockMovements StockMovement[]
+  debtEntries    DebtEntry[]
+}
+
+model Product {
+  id        String @id @default(cuid())
+  tenantId  String
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name              String
+  note              String?
+  priceMinor        Int // selling price, minor units
+  costMinor         Int // latest purchase cost, minor units (for stock valuation)
+  lowStockThreshold Int  @default(0)
+  archived          Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stockMovements StockMovement[]
+  transactions   Transaction[]
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, archived])
+}
+
+// Append-only: every change to stock is an event here. Stock on hand == SUM(quantity).
+model StockMovement {
+  id        String @id @default(cuid())
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  type          StockMovementType
+  quantity      Int // + in, - out
+  unitCostMinor Int // purchase cost at the time of the movement
+  note          String?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, productId, createdAt])
+}
+
+model Customer {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name     String
+  phone    String?
+  archived Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions Transaction[]
+  debtEntries  DebtEntry[]
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, archived])
+}
+
+// One row == one product line sold, or one payment received.
+// A SALE with onCredit=true is the event that also writes a CREDIT debt entry.
+model Transaction {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  type       TransactionType
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  productId  String?
+  product    Product?  @relation(fields: [productId], references: [id])
+
+  quantity       Int
+  unitPriceMinor Int? // selling price at the time of sale
+  amountMinor    Int // SALE: quantity * unitPrice | PAYMENT: money received
+  onCredit       Boolean @default(false) // SALE only: unpaid goods taken away
+  note           String?
+  createdAt      DateTime @default(now())
+
+  debtEntries DebtEntry[]
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, customerId, createdAt])
+  @@index([tenantId, productId, createdAt])
+}
+
+// Append-only. What a customer owes == SUM(amountMinor). + adds debt, - clears it.
+model DebtEntry {
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  customerId    String
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  type          DebtEntryType
+  amountMinor   Int // + adds to what they owe, - reduces it
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  note          String?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, customerId, createdAt])
+}
