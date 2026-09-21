@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 
@@ -16,6 +17,7 @@ import { CustomerSummary, DebtEntry } from "@/lib/types";
 
 export default function CustomersScreen() {
   const { tenant, canTransact } = useAuth();
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   const [addOpen, setAddOpen] = useState(false);
@@ -228,17 +230,32 @@ export default function CustomersScreen() {
                         </View>
                       </View>
                     ) : canTransact ? (
-                      <Button
-                        title="Record a payment"
-                        variant="secondary"
-                        onPress={() => {
-                          setPayOpenFor(item.id);
-                          setPayAmount("");
-                          setPayError(null);
-                        }}
-                        className="self-start"
-                      />
-                    ) : null}
+                      <View className="flex-row items-center gap-2">
+                        <Button
+                          title="Record a payment"
+                          variant="secondary"
+                          onPress={() => {
+                            setPayOpenFor(item.id);
+                            setPayAmount("");
+                            setPayError(null);
+                          }}
+                          className="flex-1"
+                        />
+                        <Button
+                          title="Edit"
+                          variant="secondary"
+                          onPress={() => router.push(`/customer/${item.id}`)}
+                        />
+                      </View>
+                    ) : (
+                      <View className="flex-row items-center gap-2">
+                        <Button
+                          title="Edit"
+                          variant="secondary"
+                          onPress={() => router.push(`/customer/${item.id}`)}
+                        />
+                      </View>
+                    )}
 
                     <Text className="mt-4 mb-1 text-[11px] uppercase tracking-widest text-ink-faint">
                       Debt ledger

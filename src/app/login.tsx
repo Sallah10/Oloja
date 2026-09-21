@@ -187,6 +187,9 @@ export default function LoginScreen() {
           <Text className="mt-6 text-center text-xs text-ink-faint">
             Single shop, one quiet ledger. Sessions are saved on this device, so the app opens straight to your shop.
           </Text>
+          <Text className="mt-2 text-center text-xs text-ink-faint">
+            Part of a team? Sign in, then use your invite code from Shops.
+          </Text>
         </View>
       </View>
     </Screen>

@@ -43,6 +43,15 @@ export type DebtEntry = {
   createdAt: string;
 };
 
+export type StockMovement = {
+  id: string;
+  type: "RESTOCK" | "ADJUST" | "SALE";
+  quantity: number;
+  unitCostMinor: number;
+  note: string | null;
+  createdAt: string;
+};
+
 // Phase 6: multi-shop onboarding. A person belongs to any number of shops,
 // each with its own role. OWNER runs the shop; STAFF sells, takes payments,
 // gives credit and moves stock; VIEW can read but not touch.

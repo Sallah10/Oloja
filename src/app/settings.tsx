@@ -296,6 +296,19 @@ export default function SettingsScreen() {
         </View>
       ) : null}
 
+      <View className="mt-5 rounded-lg border border-line bg-paper-card p-4">
+        <Text className="text-[11px] uppercase tracking-widest text-ink-faint">Join another shop</Text>
+        <Text className="mt-1 text-sm text-ink-soft">
+          Got a code from someone&apos;s shop? Join it and start working their ledger as staff.
+        </Text>
+        <Button
+          title="Join a shop with a code"
+          variant="secondary"
+          className="mt-3"
+          onPress={() => router.push("/invite")}
+        />
+      </View>
+
       {role === "VIEW" ? (
         <View className="mt-5 rounded-lg border border-line bg-paper-card p-4">
           <Text className="text-sm text-ink-soft">

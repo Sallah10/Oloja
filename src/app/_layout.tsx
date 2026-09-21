@@ -11,9 +11,6 @@ import { Colors } from "@/constants/theme";
 import { AuthProvider, useAuth } from "@/context/auth-context";
 import { subscribeSyncComplete } from "@/lib/offline";
 
-// TEMP DIAGNOSTIC: remove once the blank-screen bug is confirmed fixed.
-console.log("[boot] _layout.tsx module evaluated");
-
 const navigationTheme = {
   ...DefaultTheme,
   colors: {
@@ -84,8 +81,6 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Pro
 }
 
 export default function RootLayout() {
-  // TEMP DIAGNOSTIC: remove once the blank-screen bug is confirmed fixed.
-  console.log("[boot] RootLayout first render");
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -110,6 +105,9 @@ export default function RootLayout() {
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="login" />
               <Stack.Screen name="settings" />
+              <Stack.Screen name="invite" />
+              <Stack.Screen name="product/[id]" />
+              <Stack.Screen name="customer/[id]" />
             </Stack>
             <BannerSlot />
           </View>

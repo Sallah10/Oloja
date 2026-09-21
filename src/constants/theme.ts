@@ -1,6 +1,7 @@
 /**
  * Brand tokens for the app. Values mirror tailwind.config.js so that
  * programmatic colors (native tab bar) and className colors stay in sync.
+ * The app is light-only by design (see app.json "userInterfaceStyle").
  */
 
 import { Platform } from "react-native";
@@ -23,47 +24,7 @@ export const Colors = {
     paper: "#FAF7F2",
     paperCard: "#FFFFFF",
   },
-  dark: {
-    text: "#E8E4DC",
-    background: "#17140F",
-    backgroundElement: "#221E17",
-    backgroundSelected: "#2A342B",
-    textSecondary: "#A8A293",
-    accent: "#4C8F6B",
-    accentDeep: "#3A7355",
-    accentMid: "#5DA37F",
-    accentTint: "#22302A",
-    line: "#332E24",
-    danger: "#C05548",
-    inkSoft: "#A8A293",
-    inkFaint: "#776F60",
-    paper: "#17140F",
-    paperCard: "#221E17",
-  },
 } as const;
-
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
-
-export const Fonts = Platform.select({
-  ios: {
-    sans: "system-ui",
-    serif: "ui-serif",
-    rounded: "ui-rounded",
-    mono: "ui-monospace",
-  },
-  default: {
-    sans: "normal",
-    serif: "serif",
-    rounded: "normal",
-    mono: "monospace",
-  },
-  web: {
-    sans: "var(--font-display)",
-    serif: "var(--font-serif)",
-    rounded: "var(--font-rounded)",
-    mono: "var(--font-mono)",
-  },
-});
 
 export const Spacing = {
   half: 2,

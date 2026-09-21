@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { api, isMockMode, rawRequest, setAuthToken } from "@/lib/api";
+import { ApiError } from "@/lib/errors";
 import {
   registerLifecycleSync,
   requestSync,
@@ -82,7 +83,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const stored = await loadSession();
       if (cancelled) return;
       if (stored && !isMockMode) {
-        applySession(stored);
+        try {
+          // Validate the stored token against the server. A 401 means it was
+          // revoked (logout elsewhere / expired) - drop it and go to login.
+          // A network failure means we're offline: keep the stored session so
+          // the mirror can serve the shop floor until the connection returns.
+          const me = await rawRequest<{
+            user: AuthUser;
+            tenant: AuthTenant;
+            tenants: TenantMembership[];
+          }>("GET", "/auth/me");
+          if (cancelled) return;
+          applySession({ token: stored.token, ...me });
+        } catch (err) {
+          if (cancelled) return;
+          if (err instanceof ApiError && err.status === 401) {
+            await clearStoredSession();
+            setIsRestoring(false);
+            return;
+          }
+          applySession(stored);
+        }
         void requestSync(rawRequest);
       }
       setIsRestoring(false);
