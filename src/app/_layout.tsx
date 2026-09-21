@@ -105,7 +105,7 @@ export default function RootLayout() {
         <ThemeProvider value={navigationTheme}>
           <StatusBar style="dark" />
           <SyncInvalidator />
-          <View className="flex-1">
+          <View style={{ flex: 1 }}>
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="login" />

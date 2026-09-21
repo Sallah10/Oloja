@@ -5,7 +5,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Paper-ledger palette. Warm neutrals, one green accent, one danger.
+        line: "#E4DCCE",
         paper: {
           DEFAULT: "#FAF7F2",
           card: "#FFFFFF",
