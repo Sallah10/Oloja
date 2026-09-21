@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 
 import "@/global.css";
 
@@ -10,6 +10,9 @@ import { SyncBanner } from "@/components/sync-banner";
 import { Colors } from "@/constants/theme";
 import { AuthProvider, useAuth } from "@/context/auth-context";
 import { subscribeSyncComplete } from "@/lib/offline";
+
+// TEMP DIAGNOSTIC: remove once the blank-screen bug is confirmed fixed.
+console.log("[boot] _layout.tsx module evaluated");
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -46,7 +49,43 @@ function BannerSlot() {
   return <SyncBanner />;
 }
 
+// A plain JS error during render used to leave a silent blank screen; the
+// docs-recommended error boundary on the root layout turns that into a
+// readable screen so bugs can't hide. Plain inline styles on purpose: if
+// NativeWind itself is the crashing layer, this screen still has to render.
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: "#120B0B", justifyContent: "center", padding: 24 }}>
+      <Text style={{ color: "#FF7A7A", fontSize: 16, fontWeight: "700" }}>Oloja failed to render</Text>
+      <ScrollView style={{ marginTop: 12, flexGrow: 0 }}>
+        <Text style={{ color: "#FFF", fontSize: 13, fontFamily: "monospace" }}>
+          {error ? String(error.message ?? error) : "No error details"}
+        </Text>
+        {error?.stack ? (
+          <Text style={{ color: "#CCCCCC", fontSize: 12, marginTop: 8, fontFamily: "monospace" }}>
+            {error.stack}
+          </Text>
+        ) : null}
+      </ScrollView>
+      <Pressable
+        onPress={() => void retry()}
+        style={{
+          marginTop: 16,
+          alignSelf: "center",
+          paddingHorizontal: 24,
+          paddingVertical: 12,
+          backgroundColor: "#AEB7B0",
+          borderRadius: 8,
+        }}>
+        <Text style={{ color: "#120B0B", fontWeight: "700" }}>Try again</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export default function RootLayout() {
+  // TEMP DIAGNOSTIC: remove once the blank-screen bug is confirmed fixed.
+  console.log("[boot] RootLayout first render");
   const [queryClient] = useState(
     () =>
       new QueryClient({
