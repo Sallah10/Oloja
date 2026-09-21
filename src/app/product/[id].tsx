@@ -1,12 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Screen } from "@/components/ui/screen";
+import { Text } from "@/components/ui/text";
+import { useFeedback } from "@/components/feedback";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -30,9 +34,8 @@ export default function ProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { isSignedIn, canManageProducts, canTransact } = useAuth();
   const queryClient = useQueryClient();
+  const feedback = useFeedback();
 
-  // A draft holds the user's in-progress edits. Until the first keystroke it
-  // stays null and the form renders the server values straight from the query.
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -74,10 +77,10 @@ export default function ProductScreen() {
     onSuccess: () => {
       setDraft(null);
       setEditError(null);
+      feedback.show("Details saved", "success");
       void invalidate();
     },
-    onError: (err) =>
-      setEditError(err instanceof ApiError ? err.message : "Could not save changes"),
+    onError: (err) => setEditError(err instanceof ApiError ? err.message : "Could not save changes"),
   });
 
   const stockMutation = useMutation({
@@ -87,15 +90,16 @@ export default function ProductScreen() {
       unitCostMinor?: number;
       note?: string;
     }) => api(`/api/products/${id}/stock`, { method: "POST", body: input }),
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
+      const verb = input.type === "RESTOCK" ? "Restocked" : "Stock adjusted";
       setStockQty("");
       setStockCost("");
       setStockNote("");
       setStockError(null);
+      feedback.show(`${verb} · ${input.quantity >= 0 ? "+" : ""}${input.quantity}`, "success");
       void invalidate();
     },
-    onError: (err) =>
-      setStockError(err instanceof ApiError ? err.message : "Could not update stock"),
+    onError: (err) => setStockError(err instanceof ApiError ? err.message : "Could not update stock"),
   });
 
   const submitEdit = () => {
@@ -117,72 +121,70 @@ export default function ProductScreen() {
   const submitStock = () => {
     const quantity = Number(stockQty.trim());
     if (stockType === "RESTOCK") {
-      if (!Number.isInteger(quantity) || quantity <= 0) {
-        return setStockError("Enter how many units came in");
-      }
+      if (!Number.isInteger(quantity) || quantity <= 0) return setStockError("How many units came in?");
       const unitCostMinor = toMinorUnits(stockCost);
       if (unitCostMinor === null) return setStockError("Enter a valid unit cost");
-      stockMutation.mutate({
-        type: stockType,
-        quantity,
-        unitCostMinor,
-        note: stockNote.trim() || undefined,
-      });
+      stockMutation.mutate({ type: stockType, quantity, unitCostMinor, note: stockNote.trim() || undefined });
     } else {
       if (!Number.isInteger(quantity) || quantity === 0) {
-        return setStockError("Enter a non-zero amount to add or remove (e.g. -2 to remove)");
+        return setStockError("Enter a change, e.g. -2 to remove");
       }
-      stockMutation.mutate({
-        type: stockType,
-        quantity,
-        note: stockNote.trim() || undefined,
-      });
+      stockMutation.mutate({ type: stockType, quantity, note: stockNote.trim() || undefined });
     }
   };
 
   if (!isSignedIn) return <Redirect href="/login" />;
 
+  const movements = movementsQuery.data?.movements ?? [];
+  const low = (product?.stockQty ?? 0) > 0 && (product?.stockQty ?? 0) <= (product?.lowStockThreshold ?? 0);
+  const out = (product?.stockQty ?? 0) === 0;
+
   return (
     <Screen scroll>
       <View className="flex-row items-center justify-between">
-        <Text className="flex-1 pr-3 text-2xl font-semibold text-ink">
+        <Text display weight="semibold" className="min-w-0 flex-1 pr-3 text-2xl leading-7 text-ink" numberOfLines={3}>
           {product?.name ?? "Product"}
         </Text>
         <BackLink />
       </View>
 
-      {productQuery.isError ? (
-        <Text className="mt-4 text-sm text-danger">
-          {productQuery.error instanceof ApiError
-            ? productQuery.error.message
-            : "Could not load this product."}
-          {canTransact ? (
-            <Text className="text-ink-soft"> You can still record stock changes below.</Text>
-          ) : null}
-        </Text>
-      ) : null}
-
       {product ? (
         <View className="mt-5 gap-4">
-          <View className="flex-row items-center justify-between rounded-lg border border-line bg-paper-card px-4 py-3">
-            <View>
-              <Text className="text-[11px] uppercase tracking-widest text-ink-faint">Stock on hand</Text>
-              <Text className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-ink">
-                {product.stockQty}
+          <View className="rounded-3xl border border-accent-deep bg-accent-deep px-5 py-5">
+            <View className="flex-row items-center justify-between">
+              <Text weight="semibold" className="text-[11px] uppercase tracking-[1.6px] text-white/60">
+                Stock on hand
               </Text>
+              <Badge
+                tone={out ? "danger" : low ? "gold" : "ink"}
+                label={out ? "Out of stock" : low ? "Running low" : "In stock"}
+              />
             </View>
-            <View className="items-end">
-              <Text className="text-[11px] uppercase tracking-widest text-ink-faint">Low-stock alert</Text>
-              <Text className="mt-1 text-base font-medium tabular-nums text-ink-soft">
-                {product.lowStockThreshold}
+            <Text
+              weight="bold"
+              className="mt-2 text-5xl tabular-nums tracking-tight text-white"
+              style={{ fontVariant: ["tabular-nums"] }}>
+              {product.stockQty}
+            </Text>
+            <Text className="mt-1 text-sm text-white/70">
+              Sells for {formatMoney(product.priceMinor)} · margin{" "}
+              <Text weight="semibold" style={{ color: "#FFF" }}>
+                {formatMoney(product.priceMinor - product.costMinor)}
               </Text>
-            </View>
+            </Text>
+            {product.lowStockThreshold > 0 ? (
+              <Text className="mt-0.5 text-xs text-white/45">
+                Low-stock alert at {product.lowStockThreshold} units
+              </Text>
+            ) : null}
           </View>
 
           {canTransact ? (
-            <View className="rounded-lg border border-line bg-paper-card p-4">
-              <Text className="text-sm font-medium text-ink">Update stock</Text>
-              <View className="mt-3 flex-row gap-3">
+            <Card className="p-4">
+              <Text weight="medium" className="text-base text-ink">
+                Update stock
+              </Text>
+              <View className="mt-3 flex-row gap-2">
                 <Button
                   title="Restock"
                   variant={stockType === "RESTOCK" ? "primary" : "secondary"}
@@ -202,10 +204,10 @@ export default function ProductScreen() {
                   className="flex-1"
                 />
               </View>
-              <Text className="mt-3 text-xs text-ink-faint">
+              <Text className="mt-2 text-xs text-ink-faint">
                 {stockType === "RESTOCK"
-                  ? "Record goods that came in. This also refreshes the cost price."
-                  : "Fix a wrong count: a negative number removes stock, a positive one adds it."}
+                  ? "Goods came in? Record them here - it also refreshes the cost price."
+                  : "Fix a wrong count: a minus removes stock, a plus adds it."}
               </Text>
               <View className={cn("mt-3 gap-3", stockType === "ADJUST" && "flex-row")}>
                 <Field
@@ -218,7 +220,7 @@ export default function ProductScreen() {
                 />
                 {stockType === "RESTOCK" ? (
                   <Field
-                    label="Unit cost (naira)"
+                    label="Unit cost (₦)"
                     value={stockCost}
                     onChangeText={setStockCost}
                     keyboardType="numeric"
@@ -241,35 +243,34 @@ export default function ProductScreen() {
                 disabled={stockMutation.isPending}
                 className="mt-4"
               />
-            </View>
+            </Card>
           ) : null}
 
           {canManageProducts ? (
-            <View className="rounded-lg border border-line bg-paper-card p-4">
-              <Text className="text-sm font-medium text-ink">Details</Text>
+            <Card className="p-4">
+              <Text weight="medium" className="text-base text-ink">
+                Details
+              </Text>
               <View className="mt-3 gap-3">
+                <Field label="Name" value={fields?.name ?? ""} onChangeText={(v) => setField("name", v)} />
                 <Field
-                  label="Name"
-                  value={fields?.name ?? ""}
-                  onChangeText={(value) => setField("name", value)}
-                />
-                <Field
-                  label="Selling price (naira)"
+                  label="Selling price (₦)"
                   value={fields?.price ?? ""}
-                  onChangeText={(value) => setField("price", value)}
+                  onChangeText={(v) => setField("price", v)}
                   keyboardType="numeric"
                 />
                 <Field
-                  label="Cost price (naira)"
+                  label="Cost price (₦)"
                   value={fields?.cost ?? ""}
-                  onChangeText={(value) => setField("cost", value)}
+                  onChangeText={(v) => setField("cost", v)}
                   keyboardType="numeric"
                 />
                 <Field
-                  label="Low-stock alert at (naira)"
+                  label="Low-stock alert at"
                   value={fields?.threshold ?? ""}
-                  onChangeText={(value) => setField("threshold", value)}
+                  onChangeText={(v) => setField("threshold", v)}
                   keyboardType="numeric"
+                  helper="In units, not naira - flag when this many are left."
                 />
               </View>
               {editError ? <Text className="mt-3 text-sm text-danger">{editError}</Text> : null}
@@ -279,19 +280,23 @@ export default function ProductScreen() {
                 disabled={editMutation.isPending}
                 className="mt-4"
               />
-            </View>
+            </Card>
           ) : null}
 
-          <View className="rounded-lg border border-line bg-paper-card overflow-hidden">
-            <Text className="px-4 pt-4 text-[11px] uppercase tracking-widest text-ink-faint">
-              Stock movements
-            </Text>
-            {movementsQuery.isLoading ? null : movementsQuery.data?.movements.length === 0 ? (
+          <Card className="overflow-hidden">
+            <View className="px-4 pt-4">
+              <Text weight="semibold" className="text-[11px] uppercase tracking-[1.4px] text-ink-faint">
+                Stock movements
+              </Text>
+            </View>
+            {movementsQuery.isLoading ? (
+              <Text className="px-4 py-4 text-sm text-ink-soft">Loading…</Text>
+            ) : movements.length === 0 ? (
               <Text className="px-4 py-4 text-sm text-ink-soft">
                 No movements yet. Restock or adjust to start the ledger.
               </Text>
             ) : (
-              (movementsQuery.data?.movements ?? []).map((movement) => (
+              movements.map((movement) => (
                 <View key={movement.id} className="border-t border-line px-4 py-3">
                   <View className="flex-row items-center justify-between">
                     <Text className="text-sm font-medium text-ink">
@@ -304,7 +309,7 @@ export default function ProductScreen() {
                     <Text
                       className={cn(
                         "text-sm font-semibold tabular-nums",
-                        movement.quantity >= 0 ? "text-accent" : "text-danger",
+                        movement.quantity >= 0 ? "text-accent-deep" : "text-danger-deep",
                       )}>
                       {movement.quantity >= 0 ? "+" : ""}
                       {movement.quantity}
@@ -319,7 +324,18 @@ export default function ProductScreen() {
                 </View>
               ))
             )}
-          </View>
+          </Card>
+        </View>
+      ) : productQuery.isError ? (
+        <View className="mt-4 gap-2">
+          <Text className="text-sm text-danger">
+            {productQuery.error instanceof ApiError
+              ? productQuery.error.message
+              : "Could not load this product."}
+          </Text>
+          {canTransact ? (
+            <Text className="text-sm text-ink-soft">You can still record stock changes below.</Text>
+          ) : null}
         </View>
       ) : null}
     </Screen>

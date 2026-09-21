@@ -1,33 +1,71 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { FlatList, Pressable, RefreshControl, View } from "react-native";
 
 import { AmountText } from "@/components/ui/amount-text";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Field } from "@/components/ui/field";
 import { Screen } from "@/components/ui/screen";
+import { ScreenHeader } from "@/components/ui/screen-header";
+import { Text as T } from "@/components/ui/text";
+import { useFeedback } from "@/components/feedback";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
-import { ApiError } from "@/lib/errors";
 import { cn } from "@/lib/cn";
-import { formatMoney, toMinorUnits } from "@/lib/money";
-import { formatDateTime } from "@/lib/time";
+import { ApiError } from "@/lib/errors";
+import { salesToday } from "@/lib/insights";
+import { formatMoney } from "@/lib/money";
+import { dayGroupLabel, formatTimeOfDay } from "@/lib/time";
 import { CustomerSummary, ProductSummary, TransactionSummary } from "@/lib/types";
 
 type PayMode = "cash" | "credit";
 
+type TxGroup = { key: string; title: string; items: TransactionSummary[] };
+
+function groupTransactions(transactions: TransactionSummary[]): TxGroup[] {
+  const sorted = [...transactions].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+  const groups: TxGroup[] = [];
+  for (const t of sorted) {
+    const title = dayGroupLabel(t.createdAt);
+    const last = groups[groups.length - 1];
+    if (last && last.title === title) last.items.push(t);
+    else groups.push({ key: title, title, items: [t] });
+  }
+  return groups;
+}
+
 export default function SalesScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ new?: string }>();
   const { tenant, canTransact } = useAuth();
   const queryClient = useQueryClient();
+  const feedback = useFeedback();
 
-  const [recording, setRecording] = useState(false);
+  const [manualRecord, setManualRecord] = useState(false);
   const [productId, setProductId] = useState<string | null>(null);
-  const [quantity, setQuantity] = useState("");
-  const [price, setPrice] = useState("");
+  const [quantity, setQuantity] = useState(1);
   const [mode, setMode] = useState<PayMode>("cash");
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // A deep link / dashboard "Record a sale" lands on this tab with ?new=1 and
+  // jumps straight into the form. The param is consumed (cleared) here so a web
+  // refresh stays closed; opening is derived from the param, no state to mirror.
+  useEffect(() => {
+    if (params.new === "1") router.setParams({ new: undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.new]);
+
+  const recording = params.new === "1" || manualRecord;
+  const closeRecord = () => {
+    setManualRecord(false);
+    if (params.new) router.setParams({ new: undefined });
+  };
 
   const { data: productsData } = useQuery({
     queryKey: ["products"],
@@ -56,250 +94,389 @@ export default function SalesScreen() {
       onCredit: boolean;
       customerId?: string;
     }) => api("/api/sales", { method: "POST", body: input }),
-    onSuccess: () => {
-      setRecording(false);
+    onSuccess: (_data, input) => {
+      const total = input.quantity * input.unitPriceMinor;
+      closeRecord();
       setProductId(null);
-      setQuantity("");
-      setPrice("");
+      setQuantity(1);
       setCustomerId(null);
       setError(null);
+      feedback.show(`Sale recorded · ${formatMoney(total)}`, "success");
       invalidateAll();
     },
-    onError: (err) =>
-      setError(err instanceof ApiError ? err.message : "Could not record this sale"),
+    onError: (err) => setError(err instanceof ApiError ? err.message : "Could not record this sale"),
   });
 
-  const products = productsData?.products ?? [];
-  const customers = customersQuery.data?.customers ?? [];
-  const transactions = transactionsQuery.data?.transactions ?? [];
+  const products = useMemo(() => productsData?.products ?? [], [productsData]);
+  const customers = useMemo(() => customersQuery.data?.customers ?? [], [customersQuery.data]);
+  const transactions = useMemo(
+    () => transactionsQuery.data?.transactions ?? [],
+    [transactionsQuery.data],
+  );
+  const groups = useMemo(() => groupTransactions(transactions), [transactions]);
+  const today = salesToday(transactions);
 
-  const selectProduct = (input: { id: string; priceMinor: number }) => {
-    setProductId(input.id);
-    setPrice(String(input.priceMinor / 100));
+  const selectedProduct = products.find((p) => p.id === productId) ?? null;
+  const priceMinor = selectedProduct?.priceMinor ?? 0;
+  const totalMinor = priceMinor * quantity;
+
+  const selectProduct = (id: string) => {
+    setProductId(id);
+    setQuantity(1);
     setError(null);
   };
 
   const submitSale = () => {
     setError(null);
-    const quantityNum = Number(quantity.trim());
-    if (!productId) return setError("Pick a product");
-    if (!Number.isInteger(quantityNum) || quantityNum <= 0)
-      return setError("Enter how many were sold");
-    const priceMinor = toMinorUnits(price);
-    if (priceMinor === null) return setError("Enter a valid selling price");
-    if (mode === "credit" && !customerId) return setError("Choose the customer for a credit sale");
+    if (!selectedProduct) return setError("Pick a product first");
+    if (quantity <= 0) return setError("Enter how many were sold");
+    if (mode === "credit" && !customerId) return setError("Choose who is buying on credit");
     saleMutation.mutate({
-      productId,
-      quantity: quantityNum,
+      productId: selectedProduct.id,
+      quantity,
       unitPriceMinor: priceMinor,
       onCredit: mode === "credit",
       customerId: customerId ?? undefined,
     });
   };
 
-  const chipClass = (selected: boolean) =>
-    cn(
-      "rounded-md border px-3 py-2",
-      selected ? "border-accent bg-accent-tint" : "border-line bg-paper-card",
-    );
+  const header = (
+    <View>
+      <ScreenHeader
+        eyebrow={`Sales · ${tenant?.name ?? ""}`}
+        title="Sales"
+        subtitle="Sell in three taps - cash or on credit - and watch the day's story."
+      />
 
-  const chipTextClass = (selected: boolean) =>
-    cn("text-sm", selected ? "font-medium text-accent" : "text-ink");
-
-  return (
-    <Screen>
-      <View className="mt-2">
-        <Text className="text-[11px] uppercase tracking-widest text-ink-faint">
-          Sales · {tenant?.name}
-        </Text>
-        <Text className="mt-1 text-2xl font-semibold text-ink">Sales</Text>
-      </View>
+      {today.count > 0 ? (
+        <Card flat className="mt-4 flex-row items-center justify-between px-4 py-3">
+          <View className="flex-row items-center gap-2.5">
+            <View className="h-9 w-9 items-center justify-center rounded-full bg-accent-tint">
+              <Ionicons name="sunny-outline" size={17} color="#1F5D3C" />
+            </View>
+            <T className="text-sm text-ink-soft">Today so far</T>
+          </View>
+          <View className="items-end">
+            <AmountText amount={today.amountMinor} size="base" />
+            <T className="text-xs text-ink-faint">
+              {today.count} sale{today.count === 1 ? "" : "s"}
+            </T>
+          </View>
+        </Card>
+      ) : null}
 
       {canTransact ? (
         <Button
-          title={recording ? "Hide sale form" : "＋ Record a sale"}
-          variant="secondary"
-          onPress={() => setRecording(!recording)}
-          className="mt-4 self-start"
+          title={recording ? "Close the sale form" : "Record a sale"}
+          icon={recording ? "close" : "add"}
+          size="lg"
+          variant={recording ? "secondary" : "primary"}
+          onPress={() => (recording ? closeRecord() : setManualRecord(true))}
+          className="mt-4"
         />
       ) : (
-        <Text className="mt-4 text-xs font-medium text-ink-soft">
-          Read-only access in this shop - you can watch sales but not record them.
-        </Text>
+        <View className="mt-4 rounded-2xl border border-line bg-paper-card px-4 py-3">
+          <T className="text-sm text-ink-soft">
+            You can watch the ledger, but only owners and staff can record sales here.
+          </T>
+        </View>
       )}
 
       {recording ? (
-        <View className="mt-4 gap-4 rounded-lg border border-line bg-paper-card p-4">
-          <Text className="text-sm font-medium text-ink">New sale</Text>
-
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-ink-soft">Product</Text>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={products}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => {
-                const selected = productId === item.id;
-                return (
-                  <Pressable
-                    onPress={() => selectProduct(item)}
-                    disabled={item.stockQty <= 0}
-                    className={cn(chipClass(selected), "mr-2")}>
-                    <Text className={chipTextClass(selected)}>{item.name}</Text>
-                    <Text className="mt-0.5 text-xs text-ink-soft">
-                      {formatMoney(item.priceMinor)} · {item.stockQty} left
-                    </Text>
-                  </Pressable>
-                );
-              }}
-            />
+        <View className="mt-4 rounded-2xl border border-line bg-paper-card p-4">
+          <View className="flex-row items-center justify-between">
+            <T display weight="semibold" className="text-lg text-ink">
+              New sale
+            </T>
+            <T className="text-xs text-ink-faint">Step by step</T>
           </View>
 
-          <View className="flex-row gap-3">
-            <Field
-              label="Quantity"
-              value={quantity}
-              onChangeText={setQuantity}
-              keyboardType="number-pad"
-              placeholder="1"
-              className="flex-1"
-            />
-            <Field
-              label="Unit price (naira)"
-              value={price}
-              onChangeText={setPrice}
-              keyboardType="numeric"
-              placeholder="0"
-              className="flex-1"
-            />
+          <View className="mt-4 gap-2.5">
+            <StepLabel n={1} text="What did you sell?" />
+            {products.length === 0 ? (
+              <View className="rounded-xl border border-dashed border-line bg-paper px-3 py-4">
+                <T className="text-sm text-ink-soft">
+                  No products yet.{" "}
+                  <T
+                    weight="semibold"
+                    className="text-accent-deep"
+                    onPress={() => router.navigate({ pathname: "/inventory", params: { new: "1" } })}>
+                    Add one
+                  </T>{" "}
+                  and it will appear here.
+                </T>
+              </View>
+            ) : (
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={products}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
+                renderItem={({ item }) => {
+                  const selected = productId === item.id;
+                  const out = item.stockQty <= 0;
+                  return (
+                    <Chip
+                      label={item.name}
+                      subtitle={`${formatMoney(item.priceMinor)} · ${out ? "out of stock" : `${item.stockQty} left`}`}
+                      selected={selected}
+                      disabled={out}
+                      onPress={() => selectProduct(item.id)}
+                    />
+                  );
+                }}
+              />
+            )}
           </View>
 
-          <View className="flex-row gap-3">
-            <Button
-              title="Cash"
-              variant={mode === "cash" ? "primary" : "secondary"}
-              onPress={() => {
-                setMode("cash");
-                setError(null);
-              }}
-              className="flex-1"
-            />
-            <Button
-              title="On credit"
-              variant={mode === "credit" ? "primary" : "secondary"}
-              onPress={() => {
-                setMode("credit");
-                setError(null);
-              }}
-              className="flex-1"
-            />
-          </View>
+          {selectedProduct ? (
+            <View className="mt-4 gap-2.5">
+              <StepLabel n={2} text="How many?" />
+              <View className="flex-row items-center gap-3">
+                <Stepper value={quantity} onChange={setQuantity} />
+                <View className="flex-1 items-end">
+                  <T className="text-xs text-ink-faint">Total so far</T>
+                  <AmountText amount={totalMinor} size="base" />
+                </View>
+              </View>
+            </View>
+          ) : null}
 
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-ink-soft">
-              {mode === "credit" ? "Customer (required)" : "Customer (optional)"}
-            </Text>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={customers}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => {
-                const selected = customerId === item.id;
-                return (
-                  <Pressable
-                    onPress={() => {
-                      setCustomerId(selected ? null : item.id);
-                      setError(null);
-                    }}
-                    className={cn(chipClass(selected), "mr-2")}>
-                    <Text className={chipTextClass(selected)}>{item.name}</Text>
-                    {item.debtMinor > 0 ? (
-                      <Text className="mt-0.5 text-xs text-danger">
-                        owes {formatMoney(item.debtMinor)}
-                      </Text>
-                    ) : null}
-                  </Pressable>
-                );
-              }}
-            />
-          </View>
+          {selectedProduct ? (
+            <View className="mt-4 gap-2.5">
+              <StepLabel n={3} text="Cash or credit?" />
+              <View className="flex-row gap-2">
+                <ModeButton
+                  label="Cash"
+                  icon="cash-outline"
+                  selected={mode === "cash"}
+                  onPress={() => {
+                    setMode("cash");
+                    setError(null);
+                  }}
+                />
+                <ModeButton
+                  label="On credit"
+                  icon="time-outline"
+                  selected={mode === "credit"}
+                  onPress={() => {
+                    setMode("credit");
+                    setError(null);
+                  }}
+                />
+              </View>
+            </View>
+          ) : null}
 
-          {error ? <Text className="text-sm text-danger">{error}</Text> : null}
+          {selectedProduct && mode === "credit" ? (
+            <View className="mt-4 gap-2.5">
+              <StepLabel n={4} text="Who&apos;s buying?" />
+              {customers.length === 0 ? (
+                <View className="rounded-xl border border-dashed border-line bg-paper px-3 py-4">
+                  <T className="text-sm text-ink-soft">
+                    No customers yet.{" "}
+                    <T
+                      weight="semibold"
+                      className="text-accent-deep"
+                      onPress={() => router.navigate({ pathname: "/customers", params: { new: "1" } })}>
+                      Add one
+                    </T>{" "}
+                    so their balance has a home.
+                  </T>
+                </View>
+              ) : (
+                <FlatList
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  data={customers}
+                  keyExtractor={(item) => item.id}
+                  contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
+                  renderItem={({ item }) => {
+                    const selected = customerId === item.id;
+                    return (
+                      <Chip
+                        label={item.name}
+                        subtitle={
+                          item.debtMinor > 0 ? `owes ${formatMoney(item.debtMinor)}` : "all paid up"
+                        }
+                        selected={selected}
+                        onPress={() => {
+                          setCustomerId(selected ? null : item.id);
+                          setError(null);
+                        }}
+                      />
+                    );
+                  }}
+                />
+              )}
+            </View>
+          ) : null}
 
-          <Button title="Record sale" onPress={submitSale} disabled={saleMutation.isPending} />
+          {error ? (
+            <View className="mt-3 rounded-xl border border-danger/30 bg-danger-tint px-3 py-2.5">
+              <T className="text-sm text-danger-deep">{error}</T>
+            </View>
+          ) : null}
+
+          <Button
+            title={
+              saleMutation.isPending
+                ? "Recording…"
+                : selectedProduct
+                  ? `Record sale · ${formatMoney(totalMinor)}`
+                  : "Record sale"
+            }
+            onPress={submitSale}
+            disabled={saleMutation.isPending}
+            className="mt-4"
+          />
         </View>
       ) : null}
 
-      <Text className="mt-6 mb-2 text-[11px] uppercase tracking-widest text-ink-faint">
-        Recent activity
-      </Text>
+      <View className="mt-6 mb-2.5 flex-row items-center justify-between">
+        <T weight="semibold" className="text-[11px] uppercase tracking-[1.6px] text-ink-faint">
+          Your sales
+        </T>
+        {transactions.length > 0 ? (
+          <T className="text-xs text-ink-faint">{transactions.length} entry total</T>
+        ) : null}
+      </View>
+    </View>
+  );
 
-      {transactionsQuery.isError ? (
-        <EmptyState
-          title="Could not load activity"
-          body={
-            transactionsQuery.error instanceof ApiError
-              ? transactionsQuery.error.message
-              : "Something went wrong."
-          }
-        />
-      ) : (
-        <FlatList
-          data={transactions}
-          keyExtractor={(item) => item.id}
-          refreshControl={
-            <RefreshControl
-              refreshing={transactionsQuery.isRefetching}
-              onRefresh={() => void transactionsQuery.refetch()}
-              tintColor="#1E5A3B"
+  return (
+    <Screen>
+      <FlatList
+        className="flex-1"
+        data={groups}
+        keyExtractor={(g) => g.key}
+        ListHeaderComponent={header}
+        ListEmptyComponent={
+          transactionsQuery.isLoading ? null : (
+            <EmptyState
+              icon="receipt-outline"
+              title="No sales yet"
+              body="The first sale - cash or on credit - starts your ledger. It shows up here, and a customer's balance updates on its own."
+              tip="Tap “Record a sale” above when you're ready."
             />
-          }
-          ListEmptyComponent={
-            transactionsQuery.isLoading ? null : (
-              <EmptyState
-                title="No sales yet"
-                body="When you sell - cash or on credit - it shows up here, and what a customer owes updates automatically."
-              />
-            )
-          }
-          renderItem={({ item }) => (
-            <View className="mb-2 flex-row items-center justify-between rounded-lg border border-line bg-paper-card px-4 py-3">
-              <View className="flex-1 pr-3">
-                {item.type === "SALE" ? (
-                  <>
-                    <Text className="text-sm font-medium text-ink">
-                      {item.product?.name ?? "Product"}
-                      {item.onCredit ? (
-                        <Text className="text-danger"> · credit</Text>
-                      ) : null}
-                    </Text>
-                    <Text className="mt-0.5 text-xs text-ink-soft">
-                      {item.quantity} × {formatMoney(item.unitPriceMinor ?? 0)}
-                      {item.customer ? ` · ${item.customer.name}` : ""}
-                    </Text>
-                  </>
-                ) : (
-                  <>
-                    <Text className="text-sm font-medium text-ink">
-                      Payment{item.customer ? ` · ${item.customer.name}` : ""}
-                    </Text>
-                    <Text className="mt-0.5 text-xs text-ink-soft">
-                      Received {formatDateTime(item.createdAt)}
-                    </Text>
-                  </>
-                )}
-              </View>
-              <AmountText
-                amount={item.amountMinor}
-                tone={item.type === "PAYMENT" ? "owed" : "default"}
-                size="sm"
-              />
+          )
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={transactionsQuery.isRefetching}
+            onRefresh={() => void transactionsQuery.refetch()}
+            tintColor="#1F5D3C"
+            colors={["#1F5D3C"]}
+          />
+        }
+        contentContainerStyle={{ paddingBottom: 28 }}
+        renderItem={({ item: group }) => (
+          <View className="mb-2">
+            <T weight="medium" className="mb-2 mt-1 text-sm text-ink-soft">
+              {group.title}
+            </T>
+            <View className="gap-2">
+              {group.items.map((tx) => (
+                <TransactionRow key={tx.id} tx={tx} />
+              ))}
             </View>
-          )}
-        />
-      )}
+          </View>
+        )}
+      />
     </Screen>
+  );
+}
+
+function StepLabel({ n, text }: { n: number; text: string }) {
+  return (
+    <T weight="semibold" className="text-sm tracking-wide text-ink-soft">
+      <T className="text-accent-deep">{n}</T> · {text}
+    </T>
+  );
+}
+
+function Stepper({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <View className="flex-row items-center overflow-hidden rounded-xl border border-line bg-paper-card">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Decrease quantity"
+        onPress={() => onChange(Math.max(1, value - 1))}
+        className="h-12 w-12 items-center justify-center border-r border-line active:bg-paper">
+        <Ionicons name="remove" size={20} color="#1F5D3C" />
+      </Pressable>
+      <T weight="semibold" className="min-w-[52px] text-center text-lg tabular-nums text-ink">
+        {value}
+      </T>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Increase quantity"
+        onPress={() => onChange(value + 1)}
+        className="h-12 w-12 items-center justify-center border-l border-line active:bg-paper">
+        <Ionicons name="add" size={20} color="#1F5D3C" />
+      </Pressable>
+    </View>
+  );
+}
+
+function ModeButton({
+  label,
+  icon,
+  selected,
+  onPress,
+}: {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      className={cn(
+        "flex-1 flex-row items-center justify-center gap-2 rounded-xl border py-3.5",
+        selected ? "border-accent bg-accent-tint" : "border-line bg-paper-card",
+      )}>
+      <Ionicons name={icon} size={18} color={selected ? "#16452F" : "#7A6E5A"} />
+      <T weight={selected ? "semibold" : "normal"} className={selected ? "text-accent-deep" : "text-ink"}>
+        {label}
+      </T>
+    </Pressable>
+  );
+}
+
+function TransactionRow({ tx }: { tx: TransactionSummary }) {
+  const isSale = tx.type === "SALE";
+  return (
+    <Card flat className="flex-row items-center gap-3 px-4 py-3">
+      <View
+        className={cn(
+          "h-10 w-10 items-center justify-center rounded-full",
+          isSale ? "bg-accent-tint" : "bg-accent-tint2",
+        )}>
+        <Ionicons name={isSale ? "receipt-outline" : "wallet-outline"} size={18} color="#1F5D3C" />
+      </View>
+      <View className="min-w-0 flex-1">
+        <View className="flex-row items-center gap-2">
+          <T weight="semibold" className="flex-1 text-[15px] text-ink" numberOfLines={1}>
+            {isSale ? tx.product?.name ?? "Sale" : "Payment received"}
+          </T>
+          {isSale && tx.onCredit ? <Badge tone="danger" label="credit" /> : null}
+        </View>
+        <T className="mt-0.5 text-xs text-ink-soft">
+          {isSale
+            ? `${tx.quantity} × ${formatMoney(tx.unitPriceMinor ?? 0)}${tx.customer ? ` · ${tx.customer.name}` : ""}`
+            : `${tx.customer?.name ?? "Cash"} · ${formatTimeOfDay(tx.createdAt)}`}
+        </T>
+      </View>
+      <AmountText
+        amount={isSale ? tx.amountMinor : Math.abs(tx.amountMinor)}
+        tone={isSale ? "default" : "owed"}
+        size="sm"
+        className="shrink-0"
+      />
+    </Card>
   );
 }

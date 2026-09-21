@@ -5,7 +5,7 @@ import { Colors } from "@/constants/theme";
 export default function AppTabs() {
   return (
     <NativeTabs
-      backgroundColor={Colors.light.background}
+      backgroundColor={Colors.light.paper}
       iconColor={{ default: Colors.light.inkFaint, selected: Colors.light.accent }}
       labelStyle={{
         default: { color: Colors.light.inkSoft },

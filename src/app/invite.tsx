@@ -1,11 +1,13 @@
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Screen } from "@/components/ui/screen";
+import { Text } from "@/components/ui/text";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import { ApiError } from "@/lib/errors";
@@ -44,16 +46,25 @@ export default function InviteScreen() {
   return (
     <Screen scroll>
       <View className="flex-row items-center justify-between">
-        <Text className="text-2xl font-semibold text-ink">Join a shop</Text>
+        <Text display weight="semibold" className="text-2xl text-ink">
+          Join a shop
+        </Text>
         <BackLink />
       </View>
 
-      <Text className="mt-2 text-sm text-ink-soft">
-        Someone shared a code with you. Enter it here and you will switch straight into their shop
-        as staff.
-      </Text>
+      <View className="mt-2 flex-row items-start gap-3">
+        <View className="mt-0.5 h-8 w-8 items-center justify-center rounded-xl border border-accent/15 bg-accent-deep">
+          <Text display weight="bold" className="text-sm text-white">
+            O
+          </Text>
+        </View>
+        <Text className="flex-1 text-sm leading-5 text-ink-soft">
+          Someone shared a code with you. Enter it and this device switches straight into their
+          shop as staff.
+        </Text>
+      </View>
 
-      <View className="mt-6 rounded-lg border border-line bg-paper-card p-4">
+      <Card className="mt-6 p-5">
         <Field
           label="Invite code"
           value={code}
@@ -66,18 +77,18 @@ export default function InviteScreen() {
           onSubmitEditing={submit}
           returnKeyType="done"
         />
-        {error ? <Text className="mt-3 text-sm text-danger">{error}</Text> : null}
+        {error ? <Text className="mt-3 text-sm text-danger-deep">{error}</Text> : null}
         <Button
           title={busy ? "Joining…" : "Join this shop"}
           onPress={submit}
           disabled={busy}
           className="mt-5"
         />
-      </View>
+      </Card>
 
-      <Text className="mt-4 text-xs text-ink-faint">
+      <Text className="mt-4 text-xs leading-4 text-ink-faint">
         Codes stop working once used or expired. You can always go back to your own shop from the
-        shop switcher.
+        shop switcher in Settings.
       </Text>
     </Screen>
   );

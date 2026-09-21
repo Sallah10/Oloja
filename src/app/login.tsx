@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect } from "expo-router";
-import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Dispatch, SetStateAction, useState } from "react";
+import { Pressable, TextInput, View } from "react-native";
 
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Screen } from "@/components/ui/screen";
+import { Text } from "@/components/ui/text";
 import { useAuth } from "@/context/auth-context";
 import { ApiError } from "@/lib/errors";
 import { isMockMode } from "@/lib/api";
@@ -47,38 +48,48 @@ export default function LoginScreen() {
   };
 
   return (
-    <Screen className="justify-center">
-      <View className="w-full items-center px-4">
-        <View className="w-full max-w-md">
+    <Screen scroll>
+      <View className="flex-1 justify-center py-6">
+        <View className="mx-auto w-full max-w-md items-center">
           <View className="items-center">
-            <View className="h-14 w-14 items-center justify-center rounded-xl bg-accent">
-              <Text className="text-2xl font-bold text-white">O</Text>
+            <View className="h-20 w-20 items-center justify-center rounded-[24px] border border-accent/15 bg-accent-deep shadow-soft">
+              <Text display weight="bold" className="text-4xl text-white">
+                O
+              </Text>
             </View>
-            <Text className="mt-3 text-2xl font-semibold tracking-tight text-ink">Oloja</Text>
-            <Text className="mt-1 text-sm text-ink-soft">A quiet ledger for small shops.</Text>
+            <Text display weight="semibold" className="mt-4 text-4xl text-ink">
+              Oloja
+            </Text>
+            <Text className="mt-1.5 text-center text-base text-ink-soft">
+              The quiet ledger for small shops.
+            </Text>
+            <Text className="mt-1 max-w-xs text-center text-sm leading-5 text-ink-faint">
+              Sales, credit and stock - one honest notebook, in your pocket.
+            </Text>
           </View>
 
           {isMockMode ? (
-            <View className="mt-4 items-center">
-              <View className="rounded-full border border-line bg-paper-card px-3 py-1">
+            <View className="mt-4 rounded-full border border-line bg-paper-card px-3 py-1">
+              <View className="flex-row items-center gap-1.5">
+                <View className="h-1.5 w-1.5 rounded-full bg-accent" />
                 <Text className="text-[11px] font-medium uppercase tracking-wider text-ink-faint">
-                  Demo mode — local data, no server
+                  Demo mode - local data, no server
                 </Text>
               </View>
             </View>
           ) : null}
 
-          <View className="mt-8 rounded-xl border border-line bg-paper-card p-6">
-            <Text className="text-xl font-semibold text-ink">
-              {mode === "signin" ? "Sign in" : "Open your ledger"}
+          <View className="mt-8 w-full rounded-2xl border border-line bg-paper-card p-6 shadow-soft">
+            <Text display weight="semibold" className="text-xl text-ink">
+              {mode === "signin" ? "Welcome back" : "Open your ledger"}
             </Text>
-            <Text className="mt-1 text-sm text-ink-soft">
+            <Text className="mt-1 text-sm leading-5 text-ink-soft">
               {mode === "signin"
-                ? "Your sales and debts are waiting."
-                : "It takes a minute to set up your shop."}
+                ? "Your sales and balances are waiting where you left them."
+                : "It takes about a minute to set up your shop."}
             </Text>
 
-            <View className="mt-6 gap-4">
+            <View className="mt-5 gap-4">
               {mode === "signup" ? (
                 <>
                   <Field
@@ -109,71 +120,47 @@ export default function LoginScreen() {
                 onSubmitEditing={submit}
                 returnKeyType="next"
               />
-              <View className="gap-1.5">
-                <Text className="text-sm font-medium text-ink-soft">Password</Text>
-                <View>
-                  <TextInput
-                    value={password}
-                    onChangeText={setPassword}
-                    placeholder={mode === "signup" ? "At least 8 characters" : undefined}
-                    placeholderTextColor="#A49D8E"
-                    secureTextEntry={!showPassword}
-                    autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                    editable={!submitting}
-                    onSubmitEditing={submit}
-                    returnKeyType="done"
-                    onFocus={() => setPasswordFocused(true)}
-                    onBlur={() => setPasswordFocused(false)}
-                    className={cn(
-                      "h-12 rounded-md border bg-paper-card pr-16 pl-3 text-base text-ink",
-                      passwordFocused ? "border-accent" : "border-line",
-                    )}
-                  />
-                  <Pressable
-                    onPress={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-0 h-12 justify-center"
-                    hitSlop={8}
-                    accessibilityRole="button"
-                    accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-                  >
-                    <Ionicons
-                      name={showPassword ? "eye-off-outline" : "eye-outline"}
-                      size={20}
-                      color={showPassword ? "#A49D8E" : "#1E5A3B"}
-                    />
-                  </Pressable>
-                </View>
-              </View>
+              <PasswordField
+                value={password}
+                onChangeText={setPassword}
+                showPassword={showPassword}
+                setShowPassword={setShowPassword}
+                focused={passwordFocused}
+                setFocused={setPasswordFocused}
+                submitting={submitting}
+                onSubmit={submit}
+                placeholder={mode === "signup" ? "At least 8 characters" : undefined}
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              />
             </View>
 
             {error ? (
-              <View className="mt-4 rounded-md border border-danger/30 bg-danger/5 px-3 py-2">
-                <Text className="text-sm text-danger">{error}</Text>
+              <View className="mt-4 rounded-xl border border-danger/30 bg-danger-tint px-3 py-2.5">
+                <Text className="text-sm text-danger-deep">{error}</Text>
               </View>
             ) : null}
 
-            <View className="mt-6">
-              <Button
-                title={
-                  submitting
-                    ? mode === "signin"
-                      ? "Signing in…"
-                      : "Creating your ledger…"
-                    : mode === "signin"
-                      ? "Sign in"
-                      : "Create my ledger"
-                }
-                onPress={submit}
-                disabled={submitting}
-              />
-            </View>
+            <Button
+              title={
+                submitting
+                  ? mode === "signin"
+                    ? "Signing in…"
+                    : "Creating your ledger…"
+                  : mode === "signin"
+                    ? "Sign in"
+                    : "Create my ledger"
+              }
+              onPress={submit}
+              disabled={submitting}
+              className="mt-6"
+            />
           </View>
 
           <Button
             title={
               mode === "signin"
                 ? "New shop owner? Create your ledger"
-                : "Have a shop? Sign in instead"
+                : "Have a shop already? Sign in instead"
             }
             variant="ghost"
             onPress={() => {
@@ -184,14 +171,80 @@ export default function LoginScreen() {
             className="mt-3 self-center"
           />
 
-          <Text className="mt-6 text-center text-xs text-ink-faint">
-            Single shop, one quiet ledger. Sessions are saved on this device, so the app opens straight to your shop.
-          </Text>
-          <Text className="mt-2 text-center text-xs text-ink-faint">
-            Part of a team? Sign in, then use your invite code from Shops.
-          </Text>
+          <View className="mt-6 max-w-md">
+            <Text className="text-center text-xs leading-4 text-ink-faint">
+              Sessions stay on this device, so the app opens straight to your shop - even without
+              signal.
+            </Text>
+            <Text className="mt-2 text-center text-xs leading-4 text-ink-faint">
+              Part of a team? Sign in, then join a shop with its code from Settings.
+            </Text>
+          </View>
         </View>
       </View>
     </Screen>
+  );
+}
+
+function PasswordField({
+  value,
+  onChangeText,
+  showPassword,
+  setShowPassword,
+  focused,
+  setFocused,
+  submitting,
+  onSubmit,
+  placeholder,
+  autoComplete,
+}: {
+  value: string;
+  onChangeText: (v: string) => void;
+  showPassword: boolean;
+  setShowPassword: Dispatch<SetStateAction<boolean>>;
+  focused: boolean;
+  setFocused: (v: boolean) => void;
+  submitting: boolean;
+  onSubmit: () => void;
+  placeholder?: string;
+  autoComplete: "new-password" | "current-password";
+}) {
+  return (
+    <View className="gap-1.5">
+      <Text weight="medium" className="text-sm text-ink-soft">
+        Password
+      </Text>
+      <View>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#B3A78D"
+          secureTextEntry={!showPassword}
+          autoComplete={autoComplete}
+          editable={!submitting}
+          onSubmitEditing={onSubmit}
+          returnKeyType="done"
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          className={cn(
+            "h-[52px] rounded-xl border bg-paper-card pr-14 pl-3 text-base text-ink",
+            focused ? "border-accent" : "border-line",
+          )}
+        />
+        <Pressable
+          onPress={() => setShowPassword((v) => !v)}
+          className="absolute right-3 top-0 h-[52px] justify-center"
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={showPassword ? "Hide password" : "Show password"}>
+          <Ionicons
+            name={showPassword ? "eye-off-outline" : "eye-outline"}
+            size={20}
+            color={showPassword ? "#B3A78D" : "#1F5D3C"}
+          />
+        </Pressable>
+      </View>
+    </View>
   );
 }
