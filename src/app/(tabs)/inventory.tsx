@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, TextInput, View } from "react-native";
 
 import { useFeedback } from "@/components/feedback";
+import { ImportProductsCard } from "@/components/import-products";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -35,6 +36,7 @@ export default function InventoryScreen() {
   const [price, setPrice] = useState("");
   const [cost, setCost] = useState("");
   const [threshold, setThreshold] = useState("");
+  const [qty, setQty] = useState("0");
   const [formError, setFormError] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
@@ -82,12 +84,14 @@ export default function InventoryScreen() {
       priceMinor: number;
       costMinor: number;
       lowStockThreshold: number;
+      initialStockQty: number;
     }) => api<{ id: string }>("/api/products", { method: "POST", body: input }),
     onSuccess: () => {
       setName("");
       setPrice("");
       setCost("");
       setThreshold("");
+      setQty("0");
       closeAdd();
       setFormError(null);
       feedback.show("Product added", "success");
@@ -127,8 +131,23 @@ export default function InventoryScreen() {
     if (!name.trim()) return setFormError("Give the product a name");
     if (priceMinor === null) return setFormError("Enter a valid selling price");
     if (costMinor === null) return setFormError("Enter a valid cost price");
-    const thresholdMinor = toMinorUnits(threshold) ?? 0;
-    addMutation.mutate({ name: name.trim(), priceMinor, costMinor, lowStockThreshold: thresholdMinor });
+
+    const initialStockQty = Math.floor(Number(qty.trim()));
+    if (!Number.isInteger(initialStockQty) || initialStockQty < 0) {
+      return setFormError("How many do you have now? A whole number, zero or more.");
+    }
+
+    const thresholdQty = Math.floor(Number(threshold.trim()));
+    const lowStockThreshold =
+      Number.isFinite(thresholdQty) && thresholdQty > 0 ? thresholdQty : 0;
+
+    addMutation.mutate({
+      name: name.trim(),
+      priceMinor,
+      costMinor,
+      lowStockThreshold,
+      initialStockQty,
+    });
   };
 
   const submitStock = (productId: string) => {
@@ -199,12 +218,20 @@ export default function InventoryScreen() {
               helper="What the supplier charges you - Oloja uses it to show your margin."
             />
             <Field
-              label="Low-stock alert at"
+              label="How many do you have now?"
+              value={qty}
+              onChangeText={setQty}
+              keyboardType="numeric"
+              placeholder="e.g. 24"
+              helper="Your opening stock. Leave 0 if it's arriving later."
+            />
+            <Field
+              label="Low-stock alert at (units)"
               value={threshold}
               onChangeText={setThreshold}
               keyboardType="numeric"
               placeholder="e.g. 10 (optional)"
-              helper="We'll flag it when stock drops to this. Leave blank for none."
+              helper="In units, not naira. We'll flag it when stock drops to this."
             />
           </View>
           {formError ? <T className="mt-3 text-sm text-danger">{formError}</T> : null}
@@ -214,13 +241,16 @@ export default function InventoryScreen() {
           </View>
         </View>
       ) : canManageProducts ? (
-        <Button
-          title="Add product"
-          icon="add"
-          variant="secondary"
-          onPress={() => setManualAdd(true)}
-          className="mt-4"
-        />
+        <>
+          <Button
+            title="Add product"
+            icon="add"
+            variant="secondary"
+            onPress={() => setManualAdd(true)}
+            className="mt-4"
+          />
+          <ImportProductsCard onImported={invalidateProducts} />
+        </>
       ) : !canTransact ? (
         <View className="mt-4 rounded-2xl border border-line bg-paper-card px-4 py-3">
           <T className="text-sm text-ink-soft">

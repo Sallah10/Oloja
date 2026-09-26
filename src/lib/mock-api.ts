@@ -368,8 +368,15 @@ export async function mockRequest<T>(path: string, options: MockOptions = {}): P
 
   if (path === "/api/products" && method === "POST") {
     if (currentRole() !== "OWNER") deny(["OWNER"]);
-    const input = body<{ name: string; priceMinor: number; costMinor: number; lowStockThreshold?: number }>(options);
+    const input = body<{
+      name: string;
+      priceMinor: number;
+      costMinor: number;
+      lowStockThreshold?: number;
+      initialStockQty?: number;
+    }>(options);
     if (!input.name?.trim()) bad("Invalid input");
+    const stock = Math.max(Math.floor(input.initialStockQty ?? 0), 0);
     const product: MockProduct = {
       id: nid("p"),
       name: input.name.trim(),
@@ -381,6 +388,17 @@ export async function mockRequest<T>(path: string, options: MockOptions = {}): P
       createdAt: iso(),
       movements: [],
     };
+    if (stock > 0) {
+      product.movements.push({
+        id: nid("m"),
+        productId: product.id,
+        type: "RESTOCK",
+        quantity: stock,
+        unitCostMinor: input.costMinor,
+        note: "Opening stock",
+        createdAt: iso(),
+      });
+    }
     products.push(product);
     return json({ ...publicProduct(product) });
   }

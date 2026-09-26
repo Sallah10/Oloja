@@ -27,7 +27,7 @@ const toDraft = (p: ProductSummary): Draft => ({
   name: p.name,
   price: String(p.priceMinor / 100),
   cost: String(p.costMinor / 100),
-  threshold: String(p.lowStockThreshold / 100),
+  threshold: String(p.lowStockThreshold),
 });
 
 export default function ProductScreen() {
@@ -110,11 +110,13 @@ export default function ProductScreen() {
     if (!current.name.trim()) return setEditError("Give the product a name");
     if (priceMinor === null) return setEditError("Enter a valid selling price");
     if (costMinor === null) return setEditError("Enter a valid cost price");
+    const thresholdQty = Math.floor(Number(current.threshold.trim()));
     editMutation.mutate({
       name: current.name.trim(),
       priceMinor,
       costMinor,
-      lowStockThreshold: toMinorUnits(current.threshold) ?? 0,
+      lowStockThreshold:
+        Number.isFinite(thresholdQty) && thresholdQty > 0 ? thresholdQty : 0,
     });
   };
 

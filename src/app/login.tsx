@@ -15,6 +15,9 @@ import { cn } from "@/lib/cn";
 export default function LoginScreen() {
   const { user, signIn, signUp } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
+  // Set when the person wants to join someone else's shop: after a successful
+  // sign-in/up they land on /invite to enter the code instead of their ledger.
+  const [join, setJoin] = useState(false);
   const [tenantName, setTenantName] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [email, setEmail] = useState("");
@@ -24,7 +27,7 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  if (user) return <Redirect href="/" />;
+  if (user) return <Redirect href={join ? "/invite" : "/"} />;
 
   const submit = async () => {
     setError(null);
@@ -165,10 +168,23 @@ export default function LoginScreen() {
             variant="ghost"
             onPress={() => {
               setMode(mode === "signin" ? "signup" : "signin");
+              setJoin(false);
               setError(null);
               setShowPassword(false);
             }}
             className="mt-3 self-center"
+          />
+
+          <Button
+            title="Joining someone's shop? Enter their code"
+            icon="people-outline"
+            variant="ghost"
+            onPress={() => {
+              setJoin(true);
+              setError(null);
+              setShowPassword(false);
+            }}
+            className="mt-1 self-center"
           />
 
           <View className="mt-6 max-w-md">
@@ -177,7 +193,7 @@ export default function LoginScreen() {
               signal.
             </Text>
             <Text className="mt-2 text-center text-xs leading-4 text-ink-faint">
-              Part of a team? Sign in, then join a shop with its code from Settings.
+              Joining a team? Sign in with the code the shop owner shares from Settings.
             </Text>
           </View>
         </View>

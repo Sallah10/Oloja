@@ -47,6 +47,9 @@ const createSchema = z.object({
   priceMinor: z.number().int().positive(),
   costMinor: z.number().int().nonnegative(),
   lowStockThreshold: z.number().int().nonnegative().default(0),
+  // Units already on hand at creation. Written as a RESTOCK movement so the
+  // ledger stays append-only and stock on hand is still SUM(quantity).
+  initialStockQty: z.number().int().nonnegative().default(0),
   idempotencyKey: z.string().min(8).max(128).optional(),
 });
 
@@ -131,10 +134,37 @@ productsRouter.post(
         const created = await tx.product.create({
           // tenantId is explicit for the types; the scoped hook overwrites it
           // regardless, so a caller could never spoof another tenant.
-          data: { tenantId: auth.tenantId, ...input },
+          data: {
+            tenantId: auth.tenantId,
+            name: input.name,
+            note: input.note,
+            priceMinor: input.priceMinor,
+            costMinor: input.costMinor,
+            lowStockThreshold: input.lowStockThreshold,
+          },
           select: productFields,
         });
-        return { ...created, stockQty: 0 };
+
+        // Opening stock is an append-only RESTOCK event, identical to a
+        // later restock. The cost caches on the product itself, so splitting
+        // stock out of create later keeps the ledger correct.
+        let openingQty = 0;
+        if (input.initialStockQty > 0) {
+          await tx.stockMovement.create({
+            data: {
+              tenantId: auth.tenantId,
+              productId: created.id,
+              type: "RESTOCK",
+              quantity: input.initialStockQty,
+              unitCostMinor: input.costMinor,
+              note: "Opening stock",
+            },
+            select: movementFields,
+          });
+          openingQty = input.initialStockQty;
+        }
+
+        return { ...created, stockQty: openingQty };
       },
     );
     res.status(201).json(product);
