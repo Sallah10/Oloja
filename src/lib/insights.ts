@@ -116,3 +116,129 @@ export function biggestDebtor(customers: CustomerSummary[]): CustomerSummary | n
 export function profitPerUnit(product: ProductSummary): number {
   return product.priceMinor - product.costMinor;
 }
+
+export type MonthStory = {
+  label: string;
+  sales: SalesSlice;
+  creditMinor: number;
+  paymentsMinor: number;
+  /** Profit on sales whose product has a cost recorded. Seeded items with no
+   *  cost aren't guessed at - they're counted and surfaced instead. */
+  profitKnownMinor: number;
+  unknownCostSaleCount: number;
+  bestDay: { amountMinor: number; label: string } | null;
+  quietDays: number;
+  days: { label: string; amountMinor: number }[];
+};
+
+export function monthStory(
+  transactions: TransactionSummary[],
+  products: ProductSummary[],
+  now: Date = new Date(),
+): MonthStory {
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const monthStart = new Date(year, month, 1).getTime();
+  const monthEnd = new Date(year, month + 1, 1).getTime();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const byProduct = new Map(products.map((p) => [p.id, p]));
+
+  let sales = 0;
+  let saleCount = 0;
+  let creditCount = 0;
+  let creditMinor = 0;
+  let paymentsMinor = 0;
+  let profitKnownMinor = 0;
+  let unknownCostSaleCount = 0;
+
+  for (const t of transactions) {
+    const ts = new Date(t.createdAt).getTime();
+    if (ts < monthStart || ts >= monthEnd) continue;
+    if (t.type === "PAYMENT") {
+      paymentsMinor += t.amountMinor;
+      continue;
+    }
+    sales += t.amountMinor;
+    saleCount += 1;
+    if (t.onCredit) {
+      creditCount += 1;
+      creditMinor += t.amountMinor;
+    }
+
+    const product = t.productId ? byProduct.get(t.productId) : undefined;
+    if (!product) continue;
+    if (product.costMinor > 0) {
+      profitKnownMinor +=
+        Math.max(0, (t.unitPriceMinor ?? product.priceMinor) - product.costMinor) * t.quantity;
+    } else {
+      unknownCostSaleCount += 1;
+    }
+  }
+
+  let bestDay: MonthStory["bestDay"] = null;
+  let quietDays = 0;
+  const daysSeen = Math.min(daysInMonth, now.getDate());
+  const days: MonthStory["days"] = [];
+  for (let d = 1; d <= daysSeen; d++) {
+    const date = new Date(year, month, d);
+    const amount = salesOn(transactions, date).amountMinor;
+    const label = date.toLocaleDateString("en-NG", { weekday: "short", day: "numeric" });
+    days.push({ label, amountMinor: amount });
+    if (amount === 0) {
+      quietDays += 1;
+      continue;
+    }
+    if (!bestDay || amount > bestDay.amountMinor) bestDay = { amountMinor: amount, label };
+  }
+
+  return {
+    label: new Date(year, month, 1).toLocaleDateString("en-NG", {
+      month: "long",
+      year: "numeric",
+    }),
+    sales: { amountMinor: sales, count: saleCount, creditCount },
+    creditMinor,
+    paymentsMinor,
+    profitKnownMinor,
+    unknownCostSaleCount,
+    bestDay,
+    quietDays,
+    days,
+  };
+}
+
+export type SlowMover = {
+  name: string;
+  stockQty: number;
+  lastSaleAt: string | null;
+};
+
+/** Products with stock that haven't sold for a while - money sitting on the
+ *  shelf instead of in your hand. Sorted by how much is parked. */
+export function slowMovers(
+  transactions: TransactionSummary[],
+  products: ProductSummary[],
+  inactiveDays = 13,
+): SlowMover[] {
+  const cutoff = daysAgoUtcMs(inactiveDays);
+  const lastSale = new Map<string, string>();
+  for (const t of transactions) {
+    if (t.type !== "SALE" || !t.productId) continue;
+    const existing = lastSale.get(t.productId);
+    if (!existing || t.createdAt > existing) lastSale.set(t.productId, t.createdAt);
+  }
+  return products
+    .filter((p) => p.stockQty > 0)
+    .map((p) => ({ name: p.name, stockQty: p.stockQty, lastSaleAt: lastSale.get(p.id) ?? null }))
+    .filter((m) => !m.lastSaleAt || +new Date(m.lastSaleAt) < cutoff)
+    .sort((a, b) => b.stockQty - a.stockQty)
+    .slice(0, 6);
+}
+
+export function topDebtors(customers: CustomerSummary[], limit = 5): CustomerSummary[] {
+  return customers
+    .filter((c) => c.debtMinor > 0)
+    .sort((a, b) => b.debtMinor - a.debtMinor)
+    .slice(0, limit);
+}

@@ -7,6 +7,7 @@ const TABS: { name: string; label: string; href: Href }[] = [
   { name: "sales", label: "Sales", href: "/sales" },
   { name: "customers", label: "Customers", href: "/customers" },
   { name: "inventory", label: "Stock", href: "/inventory" },
+  { name: "report", label: "Report", href: "/report" },
 ];
 
 export default function AppTabs() {

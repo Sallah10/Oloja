@@ -30,6 +30,11 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Label>Stock</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="shippingbox" md="inventory_2" />
       </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="report">
+        <NativeTabs.Trigger.Label>Report</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="chart.bar" md="monitoring" />
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }

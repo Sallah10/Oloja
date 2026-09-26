@@ -84,13 +84,32 @@ export default function LoginScreen() {
 
           <View className="mt-8 w-full rounded-2xl border border-line bg-paper-card p-6 shadow-soft">
             <Text display weight="semibold" className="text-xl text-ink">
-              {mode === "signin" ? "Welcome back" : "Open your ledger"}
+              {join
+                ? mode === "signin"
+                  ? "Joining a team shop"
+                  : "Create an account first"
+                : mode === "signin"
+                  ? "Welcome back"
+                  : "Open your ledger"}
             </Text>
             <Text className="mt-1 text-sm leading-5 text-ink-soft">
-              {mode === "signin"
-                ? "Your sales and balances are waiting where you left them."
-                : "It takes about a minute to set up your shop."}
+              {join
+                ? mode === "signin"
+                  ? "Sign in and you'll go straight to the code page."
+                  : "Any shop name works for now - the code gets you into theirs too."
+                : mode === "signin"
+                  ? "Your sales and balances are waiting where you left them."
+                  : "It takes about a minute to set up your shop."}
             </Text>
+
+            {join ? (
+              <View className="mt-3 rounded-xl border border-gold/40 bg-gold-tint/60 px-3 py-2.5">
+                <Text className="text-xs leading-5 text-ink-soft">
+                  Next page: type the owner&apos;s code (they share it from Settings) and your shop
+                  joins their team.
+                </Text>
+              </View>
+            ) : null}
 
             <View className="mt-5 gap-4">
               {mode === "signup" ? (
@@ -176,11 +195,13 @@ export default function LoginScreen() {
           />
 
           <Button
-            title="Joining someone's shop? Enter their code"
-            icon="people-outline"
-            variant="ghost"
+            title={
+              join ? "You're set to join - tap to undo" : "Joining someone's shop? Enter their code"
+            }
+            icon={join ? "checkmark-circle-outline" : "people-outline"}
+            variant={join ? "ghost" : "ghost"}
             onPress={() => {
-              setJoin(true);
+              setJoin(!join);
               setError(null);
               setShowPassword(false);
             }}
