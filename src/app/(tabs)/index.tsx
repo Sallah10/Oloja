@@ -12,6 +12,7 @@ import { ScreenHeader } from "@/components/ui/screen-header";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Text } from "@/components/ui/text";
+import { WhisperSection } from "@/components/whisper";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import {
@@ -163,6 +164,10 @@ export default function DashboardScreen() {
             }}
           />
         </View>
+      ) : null}
+
+      {!(onboardingOpen && products.length === 0) ? (
+        <WhisperSection products={products} customers={customers} transactions={transactions} />
       ) : null}
 
       <View className="mt-5 flex-row gap-3">

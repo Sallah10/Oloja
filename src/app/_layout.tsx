@@ -12,6 +12,7 @@ import "@/global.css";
 import { FeedbackProvider } from "@/components/feedback";
 import { SyncBanner } from "@/components/sync-banner";
 import { AuthProvider, useAuth } from "@/context/auth-context";
+import { bootstrapNotifications } from "@/lib/notifications";
 import { subscribeSyncComplete } from "@/lib/offline";
 import { Colors, Fonts } from "@/constants/theme";
 
@@ -72,6 +73,10 @@ function Root() {
     if (fontsLoaded || fontError) void SplashScreen.hideAsync();
   }, [fontsLoaded, fontError]);
 
+  useEffect(() => {
+    void bootstrapNotifications();
+  }, []);
+
   if (!fontsLoaded && !fontError) return null;
 
   return (
@@ -87,6 +92,7 @@ function Root() {
           <Stack.Screen name="product/[id]" />
           <Stack.Screen name="customer/[id]" />
           <Stack.Screen name="start" />
+          <Stack.Screen name="whisper" />
         </Stack>
         <BannerSlot />
       </View>

@@ -16,6 +16,7 @@ import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import { ApiError } from "@/lib/errors";
 import { formatMoney, toMinorUnits } from "@/lib/money";
+import { notifyBalanceCleared } from "@/lib/notifications";
 import { formatDateTime } from "@/lib/time";
 import { CustomerSummary, DebtEntry } from "@/lib/types";
 
@@ -72,6 +73,9 @@ export default function CustomerScreen() {
       setPayAmount("");
       setPayError(null);
       feedback.show(`Payment received · ${formatMoney(input.amountMinor)}`, "success");
+      if (customer && customer.debtMinor > 0 && input.amountMinor >= customer.debtMinor) {
+        void notifyBalanceCleared(customer.name);
+      }
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer", id] });
       queryClient.invalidateQueries({ queryKey: ["customer-debt", id] });

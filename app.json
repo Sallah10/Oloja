@@ -29,7 +29,7 @@
         "Cross-Origin-Opener-Policy": "same-origin"
       }
     },
-    "plugins": [
+"plugins": [
       "expo-router",
       [
         "expo-splash-screen",
@@ -39,7 +39,8 @@
           "imageWidth": 76
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,

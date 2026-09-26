@@ -2,7 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { FlatList, Modal, Pressable, View } from "react-native";
+import { FlatList, Modal, Pressable, Switch, View } from "react-native";
 
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,13 @@ import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { ApiError } from "@/lib/errors";
+import {
+  cachedNotificationSettings,
+  notificationsSupported,
+  requestNotificationPermission,
+  updateNotificationSettings,
+  type NotificationSettings,
+} from "@/lib/notifications";
 import { InviteInfo, MembershipRole, ShopMember, TenantMembership } from "@/lib/types";
 
 type InvitesData = {
@@ -91,6 +98,44 @@ function ShopSwitcher({
   );
 }
 
+const DAILY_TIMES = [
+  { label: "Morning", time: "6:00", hour: 6, minute: 0 },
+  { label: "Market open", time: "9:00", hour: 9, minute: 0 },
+  { label: "Evening", time: "18:00", hour: 18, minute: 0 },
+];
+
+function SettingRow({
+  label,
+  hint,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: boolean;
+  disabled?: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <View className="border-t border-line px-5 py-4 first:border-t-0">
+      <View className="flex-row items-center justify-between gap-3">
+        <View className="flex-1 pr-3">
+          <Text className="text-sm font-medium text-ink">{label}</Text>
+          <Text className="mt-0.5 text-xs leading-4 text-ink-soft">{hint}</Text>
+        </View>
+        <Switch
+          value={value}
+          disabled={disabled}
+          onValueChange={onChange}
+          trackColor={{ false: "#E9DFCD", true: "#1F5D3C" }}
+          thumbColor="#FFFDF8"
+        />
+      </View>
+    </View>
+  );
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -101,6 +146,11 @@ export default function SettingsScreen() {
   const [copied, setCopied] = useState(false);
   const [confirmingMember, setConfirmingMember] = useState<string | null>(null);
   const [changingRole, setChangingRole] = useState<string | null>(null);
+  const [notif, setNotif] = useState<NotificationSettings>(() => ({
+    ...cachedNotificationSettings(),
+  }));
+
+  const notifSupported = notificationsSupported();
 
   const invitesQuery = useQuery({
     queryKey: ["invites"],
