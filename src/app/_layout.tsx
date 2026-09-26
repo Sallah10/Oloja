@@ -86,6 +86,7 @@ function Root() {
           <Stack.Screen name="invite" />
           <Stack.Screen name="product/[id]" />
           <Stack.Screen name="customer/[id]" />
+          <Stack.Screen name="start" />
         </Stack>
         <BannerSlot />
       </View>

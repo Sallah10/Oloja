@@ -101,8 +101,9 @@ export default function CustomerScreen() {
 
   return (
     <Screen scroll>
-      <View className="flex-row items-center justify-between gap-3">
-        <View className="min-w-0 flex-row items-center gap-3">
+      <View className="flex-row items-center gap-3">
+        <BackLink fallback="/customers" />
+        <View className="min-w-0 flex-1 flex-row items-center gap-3">
           {customer ? <Avatar name={customer.name} size={44} /> : null}
           <View className="min-w-0 flex-1">
             <Text display weight="semibold" className="text-2xl leading-7 text-ink" numberOfLines={2}>
@@ -113,7 +114,6 @@ export default function CustomerScreen() {
             ) : null}
           </View>
         </View>
-        <BackLink />
       </View>
 
       {customer ? (

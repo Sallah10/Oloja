@@ -143,11 +143,11 @@ export default function ProductScreen() {
 
   return (
     <Screen scroll>
-      <View className="flex-row items-center justify-between">
-        <Text display weight="semibold" className="min-w-0 flex-1 pr-3 text-2xl leading-7 text-ink" numberOfLines={3}>
+      <View className="flex-row items-center gap-3">
+        <BackLink fallback="/inventory" />
+        <Text display weight="semibold" className="min-w-0 flex-1 text-2xl leading-7 text-ink" numberOfLines={3}>
           {product?.name ?? "Product"}
         </Text>
-        <BackLink />
       </View>
 
       {product ? (
@@ -169,10 +169,14 @@ export default function ProductScreen() {
               {product.stockQty}
             </Text>
             <Text className="mt-1 text-sm text-white/70">
-              Sells for {formatMoney(product.priceMinor)} · margin{" "}
-              <Text weight="semibold" style={{ color: "#FFF" }}>
-                {formatMoney(product.priceMinor - product.costMinor)}
-              </Text>
+              Sells for {formatMoney(product.priceMinor)} ·{" "}
+              {product.costMinor > 0 ? (
+                <Text weight="semibold" style={{ color: "#FFF" }}>
+                  margin {formatMoney(product.priceMinor - product.costMinor)}
+                </Text>
+              ) : (
+                <Text style={{ color: "#FFF" }}>no cost yet - add it on a restock</Text>
+              )}
             </Text>
             {product.lowStockThreshold > 0 ? (
               <Text className="mt-0.5 text-xs text-white/45">

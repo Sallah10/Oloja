@@ -348,7 +348,10 @@ export default function InventoryScreen() {
                       {item.name}
                     </T>
                     <T className="mt-0.5 text-xs text-ink-soft">
-                      {formatMoney(item.priceMinor)} · margin {formatMoney(item.priceMinor - item.costMinor)}
+                      {formatMoney(item.priceMinor)}
+                      {item.costMinor > 0
+                        ? ` · margin ${formatMoney(item.priceMinor - item.costMinor)}`
+                        : " · no cost yet"}
                     </T>
                   </View>
                   <View className="items-end shrink-0">

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Field } from "@/components/ui/field";
 import { Screen } from "@/components/ui/screen";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { Text as T } from "@/components/ui/text";
@@ -52,6 +53,10 @@ export default function SalesScreen() {
   const [mode, setMode] = useState<PayMode>("cash");
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [addingCustomer, setAddingCustomer] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newCustomerError, setNewCustomerError] = useState<string | null>(null);
 
   // A deep link / dashboard "Record a sale" lands on this tab with ?new=1 and
   // jumps straight into the form. The param is consumed (cleared) here so a web
@@ -107,6 +112,22 @@ export default function SalesScreen() {
     onError: (err) => setError(err instanceof ApiError ? err.message : "Could not record this sale"),
   });
 
+  const addCustomerMutation = useMutation({
+    mutationFn: (input: { name: string; phone?: string }) =>
+      api<{ id: string }>("/api/customers", { method: "POST", body: input }),
+    onSuccess: (data) => {
+      setCustomerId(data.id);
+      setAddingCustomer(false);
+      setNewName("");
+      setNewPhone("");
+      setNewCustomerError(null);
+      feedback.show("Customer added", "success");
+      void queryClient.invalidateQueries({ queryKey: ["customers"] });
+    },
+    onError: (err) =>
+      setNewCustomerError(err instanceof ApiError ? err.message : "Could not add customer"),
+  });
+
   const products = useMemo(() => productsData?.products ?? [], [productsData]);
   const customers = useMemo(() => customersQuery.data?.customers ?? [], [customersQuery.data]);
   const transactions = useMemo(
@@ -138,6 +159,12 @@ export default function SalesScreen() {
       onCredit: mode === "credit",
       customerId: customerId ?? undefined,
     });
+  };
+
+  const submitNewCustomer = () => {
+    setNewCustomerError(null);
+    if (!newName.trim()) return setNewCustomerError("Give the customer a name");
+    addCustomerMutation.mutate({ name: newName.trim(), phone: newPhone.trim() || undefined });
   };
 
   const header = (
@@ -272,43 +299,91 @@ export default function SalesScreen() {
           {selectedProduct && mode === "credit" ? (
             <View className="mt-4 gap-2.5">
               <StepLabel n={4} text="Who&apos;s buying?" />
-              {customers.length === 0 ? (
+              {addingCustomer ? (
+                <View className="rounded-xl border border-line bg-paper p-3">
+                  <Field
+                    label="Name"
+                    value={newName}
+                    onChangeText={setNewName}
+                    placeholder="e.g. Ada Okafor"
+                    autoFocus
+                  />
+                  <Field
+                    label="Phone (optional)"
+                    value={newPhone}
+                    onChangeText={setNewPhone}
+                    keyboardType="phone-pad"
+                    placeholder="e.g. 08012345678"
+                    className="mt-2"
+                  />
+                  {newCustomerError ? <T className="mt-2 text-sm text-danger">{newCustomerError}</T> : null}
+                  <View className="mt-3 flex-row gap-2">
+                    <Button
+                      title={addCustomerMutation.isPending ? "Adding…" : "Add customer"}
+                      disabled={addCustomerMutation.isPending}
+                      onPress={submitNewCustomer}
+                      size="sm"
+                      className="flex-1"
+                    />
+                    <Button
+                      title="Cancel"
+                      variant="secondary"
+                      size="sm"
+                      onPress={() => {
+                        setAddingCustomer(false);
+                        setNewCustomerError(null);
+                      }}
+                    />
+                  </View>
+                </View>
+              ) : customers.length === 0 ? (
                 <View className="rounded-xl border border-dashed border-line bg-paper px-3 py-4">
                   <T className="text-sm text-ink-soft">
-                    No customers yet.{" "}
+                    No customers yet -{" "}
                     <T
                       weight="semibold"
                       className="text-accent-deep"
-                      onPress={() => router.navigate({ pathname: "/customers", params: { new: "1" } })}>
-                      Add one
+                      onPress={() => {
+                        setAddingCustomer(true);
+                        setError(null);
+                      }}>
+                      add the first one
                     </T>{" "}
-                    so their balance has a home.
+                    here and their balance has a home.
                   </T>
                 </View>
               ) : (
-                <FlatList
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  data={customers}
-                  keyExtractor={(item) => item.id}
-                  contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
-                  renderItem={({ item }) => {
-                    const selected = customerId === item.id;
-                    return (
-                      <Chip
-                        label={item.name}
-                        subtitle={
-                          item.debtMinor > 0 ? `owes ${formatMoney(item.debtMinor)}` : "all paid up"
-                        }
-                        selected={selected}
-                        onPress={() => {
-                          setCustomerId(selected ? null : item.id);
-                          setError(null);
-                        }}
-                      />
-                    );
-                  }}
-                />
+                <>
+                  <FlatList
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    data={customers}
+                    keyExtractor={(item) => item.id}
+                    contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
+                    ListFooterComponent={
+                      <Chip label="+ Add new" subtitle="then it's selected" onPress={() => setAddingCustomer(true)} />
+                    }
+                    renderItem={({ item }) => {
+                      const selected = customerId === item.id;
+                      return (
+                        <Chip
+                          label={item.name}
+                          subtitle={
+                            item.debtMinor > 0 ? `owes ${formatMoney(item.debtMinor)}` : "all paid up"
+                          }
+                          selected={selected}
+                          onPress={() => {
+                            setCustomerId(selected ? null : item.id);
+                            setError(null);
+                          }}
+                        />
+                      );
+                    }}
+                  />
+                  <T className="px-1 text-xs text-ink-faint">
+                    The one you pick gets this credit added to their balance.
+                  </T>
+                </>
               )}
             </View>
           ) : null}

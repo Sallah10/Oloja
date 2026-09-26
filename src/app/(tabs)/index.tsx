@@ -66,7 +66,10 @@ export default function DashboardScreen() {
     {
       key: "products",
       title: "Add your first products",
-      hint: "The goods you sell - give each a price.",
+      hint:
+        products.length === 0
+          ? "Start from a template for your trade, or add one by hand."
+          : "The goods you sell - give each a price.",
       done: products.length > 0,
     },
     {
@@ -152,8 +155,10 @@ export default function DashboardScreen() {
             shopName={tenant?.name ?? "your shop"}
             steps={steps}
             onChoose={(step) => {
-              if (step.key === "products") open("/inventory");
-              else if (step.key === "sale") open("/sales");
+              if (step.key === "products") {
+                if (products.length === 0) router.push("/start");
+                else open("/inventory");
+              } else if (step.key === "sale") open("/sales");
               else open("/customers");
             }}
           />
