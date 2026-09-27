@@ -9,13 +9,18 @@ import { useFeedback } from "@/components/feedback";
 import { Button } from "@/components/ui/button";
 import { Text as T } from "@/components/ui/text";
 import { api } from "@/lib/api";
-import { parseProductsCsv, PRODUCT_CSV_TEMPLATE, type CsvParseResult } from "@/lib/csv";
+import {
+  CUSTOMER_CSV_TEMPLATE,
+  parseCustomersCsv,
+  type CsvParseResult,
+  type CustomerImportRow,
+} from "@/lib/csv";
 import { downloadTextFile } from "@/lib/download";
 import { ApiError } from "@/lib/errors";
 
 const ACCEPTED = ["text/csv", "text/comma-separated-values", "text/plain", "application/vnd.ms-excel"];
 
-export function ImportProductsCard({ onImported }: { onImported: () => void }) {
+export function ImportCustomersCard({ onImported }: { onImported: () => void }) {
   const feedback = useFeedback();
 
   const [open, setOpen] = useState(false);
@@ -23,7 +28,7 @@ export function ImportProductsCard({ onImported }: { onImported: () => void }) {
   const [pasting, setPasting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [pasteText, setPasteText] = useState("");
-  const [preview, setPreview] = useState<CsvParseResult | null>(null);
+  const [preview, setPreview] = useState<CsvParseResult<CustomerImportRow> | null>(null);
   const [running, setRunning] = useState(false);
 
   const reset = () => {
@@ -32,17 +37,17 @@ export function ImportProductsCard({ onImported }: { onImported: () => void }) {
     setPasting(false);
   };
 
-  const review = (text: string) => setPreview(parseProductsCsv(text));
+  const review = (text: string) => setPreview(parseCustomersCsv(text));
 
   const copyTemplate = () => {
-    void Clipboard.setStringAsync(PRODUCT_CSV_TEMPLATE);
+    void Clipboard.setStringAsync(CUSTOMER_CSV_TEMPLATE);
     feedback.show("Template copied - paste it somewhere, fill it, then import the file", "info");
   };
 
   const downloadTemplate = async () => {
     setDownloading(true);
     try {
-      await downloadTextFile("oloja-products.csv", PRODUCT_CSV_TEMPLATE);
+      await downloadTextFile("oloja-customers.csv", CUSTOMER_CSV_TEMPLATE);
     } finally {
       setDownloading(false);
     }
@@ -70,25 +75,19 @@ export function ImportProductsCard({ onImported }: { onImported: () => void }) {
     }
   };
 
-  // Each row is one product POST. Products can only be created online (server
-  // issues the id), so a dropped connection stops the batch and reports what
-  // made it through.
-  const importAll = async (rows: CsvParseResult["rows"]) => {
+  // Each row is one customer POST. Customers can only be created online
+  // (server issues the id), so a dropped connection stops the batch and
+  // reports what made it through.
+  const importAll = async (rows: CustomerImportRow[]) => {
     setRunning(true);
     let added = 0;
     const failures: string[] = [];
     let aborted = false;
     for (const row of rows) {
       try {
-        await api("/api/products", {
+        await api("/api/customers", {
           method: "POST",
-          body: {
-            name: row.name,
-            priceMinor: row.priceMinor,
-            costMinor: row.costMinor,
-            lowStockThreshold: row.lowStockThreshold,
-            initialStockQty: row.initialStockQty,
-          },
+          body: { name: row.name, phone: row.phone ?? undefined },
         });
         added++;
       } catch (err) {
@@ -110,7 +109,7 @@ export function ImportProductsCard({ onImported }: { onImported: () => void }) {
     } else if (failures.length) {
       feedback.show(`Added ${added} · skipped ${failures.length}`, "success");
     } else {
-      feedback.show(`Added ${added} product${added === 1 ? "" : "s"}`, "success");
+      feedback.show(`Added ${added} customer${added === 1 ? "" : "s"}`, "success");
     }
 
     setOpen(false);
@@ -132,8 +131,8 @@ export function ImportProductsCard({ onImported }: { onImported: () => void }) {
         </Pressable>
       </View>
       <T className="mt-1 text-sm leading-5 text-ink-soft">
-        Skip the typing: fill our template and add many products at once - costs, stock on hand and
-        low-stock alerts come along.
+        Skip the typing: fill our template and add many customers at once - names and phone
+        numbers come along.
       </T>
 
       {!preview ? (
@@ -159,7 +158,7 @@ export function ImportProductsCard({ onImported }: { onImported: () => void }) {
                 onChangeText={setPasteText}
                 multiline
                 scrollEnabled={false}
-                placeholder={"Paste rows here - one product per line:\nName,price,cost,quantity,alert"}
+                placeholder={"Paste rows here - one customer per line:\nName,phone"}
                 placeholderTextColor="#B3A78D"
                 className="h-28 rounded-xl border border-line bg-paper px-3 py-2.5 text-base text-ink"
               />
@@ -190,17 +189,18 @@ export function ImportProductsCard({ onImported }: { onImported: () => void }) {
             <T className="mt-4 text-sm text-danger">{preview.fatal}</T>
           ) : ready.length === 0 ? (
             <T className="mt-4 text-sm text-danger">
-              Nothing usable in there. Each line needs a name and a price.
+              Nothing usable in there. Each line needs a name; phone is optional.
             </T>
           ) : (
             <View className="mt-4">
               <T weight="semibold" className="text-base text-ink">
-                {ready.length} product{ready.length === 1 ? "" : "s"} ready · {issues.length} to fix
+                {ready.length} customer{ready.length === 1 ? "" : "s"} ready · {issues.length} to fix
               </T>
               <View className="mt-2 gap-1">
                 {ready.slice(0, 4).map((row) => (
                   <T key={row.line} className="text-sm text-ink-soft" numberOfLines={1}>
-                    · {row.name} — ₦{(row.priceMinor / 100).toLocaleString("en-NG")}
+                    · {row.name}
+                    {row.phone ? ` — ${row.phone}` : " (no phone)"}
                   </T>
                 ))}
                 {ready.length > 4 ? (

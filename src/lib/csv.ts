@@ -1,6 +1,6 @@
-// Parsing and shaping for CSV product imports. Deliberately small: one fixed
-// column order (the downloadable template is the spec), header line tolerated,
-// quoted fields supported so names with commas work.
+// Parsing and shaping for CSV imports. Deliberately small: one fixed column
+// order per kind (the downloadable template is the spec), header line
+// tolerated, quoted fields supported so names with commas work.
 
 export type ImportRow = {
   line: number;
@@ -11,9 +11,15 @@ export type ImportRow = {
   lowStockThreshold: number;
 };
 
-export type CsvParseResult = {
+export type CustomerImportRow = {
+  line: number;
+  name: string;
+  phone: string | null;
+};
+
+export type CsvParseResult<T = ImportRow> = {
   /** Rows that parsed cleanly and are ready to import. */
-  rows: ImportRow[];
+  rows: T[];
   /** row -> why it was skipped, 1-based line numbers. */
   errors: { line: number; reason: string }[];
   /** A top-level problem with the file itself (garbled, empty...). */
@@ -24,6 +30,14 @@ export const PRODUCT_CSV_TEMPLATE = [
   "name,price,cost,quantity on hand,low-stock alert at",
   "Rose Gold 50ml,12500,8000,24,5",
   "Oud Lumiere 30ml,22000,15000,12,3",
+].join("\n");
+
+// Phone numbers are quoted in the template so Excel/Sheets keep them as text
+// and the leading zero survives (0803... must not silently become 803...).
+export const CUSTOMER_CSV_TEMPLATE = [
+  "name,phone",
+  '"Amina Sule","0803 123 4567"',
+  '"Chidi Okeke",""',
 ].join("\n");
 
 function toNairaMinor(cell: string): number | null {
@@ -118,6 +132,47 @@ export function parseProductsCsv(text: string): CsvParseResult {
       initialStockQty: toCount(qtyCell ?? ""),
       lowStockThreshold: toCount(thresholdCell ?? ""),
     });
+  });
+
+  return result;
+}
+
+export function parseCustomersCsv(text: string): CsvParseResult<CustomerImportRow> {
+  const result: CsvParseResult<CustomerImportRow> = { rows: [], errors: [] };
+
+  // Strip a UTF-8 BOM and normalise Windows line endings.
+  const clean = text.replace(/^\uFEFF/, "").replace(/\r/g, "");
+  const lines = clean.split("\n").map((l) => l.trimEnd());
+
+  if (lines.every((l) => l.trim() === "")) {
+    result.fatal = "That file is empty.";
+    return result;
+  }
+
+  lines.forEach((raw, index) => {
+    const line = index + 1;
+    if (raw.trim() === "") return;
+    const cells = splitLine(raw);
+    if (!cells) {
+      result.errors.push({ line, reason: "Unclosed quote - check the line." });
+      return;
+    }
+    if (line === 1 && isHeaderRow(cells)) return;
+
+    const [nameCell, phoneCell] = cells;
+
+    if (!nameCell?.trim()) {
+      result.errors.push({ line, reason: "No name - put the customer's name first." });
+      return;
+    }
+    let phone: string | null = (phoneCell ?? "").trim();
+    if (phone === "") phone = null;
+    if (phone && phone.length > 24) {
+      result.errors.push({ line, reason: "Phone is longer than 24 characters." });
+      return;
+    }
+
+    result.rows.push({ line, name: nameCell.trim(), phone });
   });
 
   return result;

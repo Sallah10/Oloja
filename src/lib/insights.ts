@@ -242,3 +242,165 @@ export function topDebtors(customers: CustomerSummary[], limit = 5): CustomerSum
     .sort((a, b) => b.debtMinor - a.debtMinor)
     .slice(0, limit);
 }
+
+export type PeriodKey = "week" | "month" | "quarter" | "all";
+
+export const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
+  { key: "week", label: "Week" },
+  { key: "month", label: "Month" },
+  { key: "quarter", label: "Quarter" },
+  { key: "all", label: "All time" },
+];
+
+export type PeriodStory = MonthStory & {
+  key: PeriodKey;
+  /** Number of days from the window's start to today (drives the chart and
+   *  the "vs the earlier stretch" comparison). */
+  windowDays: number;
+  /** Total sales in the same-length window just before this one, so the owner
+   *  can see whether a stretch is a step up or a step down. */
+  previousMinor: number;
+};
+
+function startOfLocalDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** The period's story - the same shape the month tells, but answering the
+ *  owner's "how well did we do in a certain stretch" for a week, month,
+ *  quarter or the whole ledger. Days are bucketed once per sale, so long
+ *  histories stay cheap. */
+export function periodStory(
+  transactions: TransactionSummary[],
+  products: ProductSummary[],
+  key: PeriodKey,
+  now: Date = new Date(),
+): PeriodStory {
+  const startOfToday = startOfLocalDay(now);
+  const endToday = new Date(startOfToday);
+  endToday.setDate(endToday.getDate() + 1);
+
+  let from: Date;
+  let label: string;
+  let previousFrom: Date | null;
+
+  if (key === "week") {
+    from = new Date(startOfToday);
+    from.setDate(from.getDate() - 6);
+    label = "This week";
+    previousFrom = new Date(from);
+    previousFrom.setDate(previousFrom.getDate() - 7);
+  } else if (key === "month") {
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+    label = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString("en-NG", {
+      month: "long",
+      year: "numeric",
+    });
+    previousFrom = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  } else if (key === "quarter") {
+    const quarterStartMonth = now.getMonth() - (now.getMonth() % 3);
+    from = new Date(now.getFullYear(), quarterStartMonth, 1);
+    label = `${from.toLocaleDateString("en-NG", { month: "short" })} - ${now.toLocaleDateString("en-NG", { month: "short" })} ${now.getFullYear()}`;
+    previousFrom = new Date(now.getFullYear(), quarterStartMonth - 3, 1);
+  } else {
+    const earliest =
+      transactions.reduce(
+        (min, t) => Math.min(min, new Date(t.createdAt).getTime()),
+        startOfToday.getTime(),
+      ) ?? startOfToday.getTime();
+    from = startOfLocalDay(new Date(earliest));
+    label = "All time";
+    previousFrom = null;
+  }
+
+  const fromMs = from.getTime();
+  const toMs = endToday.getTime();
+  const windowDays = Math.round((toMs - fromMs) / 86_400_000);
+
+  const byProduct = new Map(products.map((p) => [p.id, p]));
+
+  let sales = 0;
+  let saleCount = 0;
+  let creditCount = 0;
+  let creditMinor = 0;
+  let paymentsMinor = 0;
+  let profitKnownMinor = 0;
+  let unknownCostSaleCount = 0;
+
+  for (const t of transactions) {
+    const ts = new Date(t.createdAt).getTime();
+    if (ts >= toMs) continue;
+    if (t.type === "PAYMENT") {
+      if (ts >= fromMs) paymentsMinor += t.amountMinor;
+      continue;
+    }
+    if (ts < fromMs) continue;
+    sales += t.amountMinor;
+    saleCount += 1;
+    if (t.onCredit) {
+      creditCount += 1;
+      creditMinor += t.amountMinor;
+    }
+
+    const product = t.productId ? byProduct.get(t.productId) : undefined;
+    if (!product) continue;
+    if (product.costMinor > 0) {
+      profitKnownMinor +=
+        Math.max(0, (t.unitPriceMinor ?? product.priceMinor) - product.costMinor) * t.quantity;
+    } else {
+      unknownCostSaleCount += 1;
+    }
+  }
+
+  let previousMinor = 0;
+  if (previousFrom) {
+    for (const t of transactions) {
+      if (t.type !== "SALE") continue;
+      const ts = new Date(t.createdAt).getTime();
+      if (ts >= fromMs || ts < previousFrom.getTime()) continue;
+      previousMinor += t.amountMinor;
+    }
+  }
+
+  // Bucket sales once per day, then walk the calendar so quiet days (missing
+  // from the transactions) still get a bar.
+  const buckets = new Map<number, number>();
+  for (const t of transactions) {
+    if (t.type !== "SALE") continue;
+    const ts = new Date(t.createdAt).getTime();
+    if (ts < fromMs || ts >= toMs) continue;
+    const dayStart = startOfLocalDay(new Date(ts)).getTime();
+    buckets.set(dayStart, (buckets.get(dayStart) ?? 0) + t.amountMinor);
+  }
+
+  let bestDay: PeriodStory["bestDay"] = null;
+  let quietDays = 0;
+  const days: PeriodStory["days"] = [];
+  for (let d = new Date(from); d.getTime() < toMs; d.setDate(d.getDate() + 1)) {
+    const amount = buckets.get(startOfLocalDay(d).getTime()) ?? 0;
+    const dayLabel = d.toLocaleDateString("en-NG", { weekday: "short", day: "numeric" });
+    days.push({ label: dayLabel, amountMinor: amount });
+    if (amount === 0) {
+      quietDays += 1;
+    } else if (!bestDay || amount > bestDay.amountMinor) {
+      bestDay = { amountMinor: amount, label: dayLabel };
+    }
+  }
+
+  return {
+    key,
+    label,
+    windowDays,
+    previousMinor,
+    sales: { amountMinor: sales, count: saleCount, creditCount },
+    creditMinor,
+    paymentsMinor,
+    profitKnownMinor,
+    unknownCostSaleCount,
+    bestDay,
+    quietDays,
+    days,
+  };
+}

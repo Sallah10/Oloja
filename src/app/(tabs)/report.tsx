@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { AmountText } from "@/components/ui/amount-text";
@@ -15,12 +15,14 @@ import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import {
   biggestDebtor,
-  monthStory,
+  PERIOD_OPTIONS,
+  periodStory,
   slowMovers,
   stockCounts,
   topDebtors,
   totalOwed,
   type MonthStory,
+  type PeriodKey,
 } from "@/lib/insights";
 import { formatMoney } from "@/lib/money";
 import { formatDateTime } from "@/lib/time";
@@ -35,6 +37,7 @@ import { CustomerSummary, ProductSummary, TransactionSummary } from "@/lib/types
 export default function ReportScreen() {
   const router = useRouter();
   const { tenant } = useAuth();
+  const [period, setPeriod] = useState<PeriodKey>("month");
 
   const productsQuery = useQuery({
     queryKey: ["products"],
@@ -56,7 +59,11 @@ export default function ReportScreen() {
     [transactionsQuery.data],
   );
 
-  const month = useMemo(() => monthStory(transactions, products), [transactions, products]);
+  const story = useMemo(
+    () => periodStory(transactions, products, period),
+    [transactions, products, period],
+  );
+  const showChart = story.days.length <= 92;
   const stock = useMemo(() => stockCounts(products), [products]);
   const owed = useMemo(() => totalOwed(customers), [customers]);
   const owedCount = customers.filter((c) => c.debtMinor > 0).length;
@@ -70,44 +77,60 @@ export default function ReportScreen() {
     <Screen scroll>
       <ScreenHeader
         eyebrow={`Report · ${tenant?.name ?? ""}`}
-        title="Your month"
-        subtitle={`The ledger's view of ${month.label}: what sold, what's left, and who still owes.`}
+        title="Your performance"
+        subtitle={`The ledger's view of ${story.label} - what sold, what's left, and who still owes.`}
       />
+
+      <View className="mt-4 flex-row gap-2">
+        {PERIOD_OPTIONS.map((opt) => (
+          <PeriodChip
+            key={opt.key}
+            label={opt.label}
+            active={period === opt.key}
+            onPress={() => setPeriod(opt.key)}
+          />
+        ))}
+      </View>
 
       <View className="mt-5">
         <View className="rounded-3xl border border-accent-deep bg-accent-deep px-5 py-5 shadow-soft">
           <View className="flex-row items-center justify-between">
             <T weight="semibold" className="text-[11px] uppercase tracking-[1.6px] text-white/60">
-              {month.label}
+              {story.label}
             </T>
             <View className="rounded-full bg-white/15 px-2.5 py-1">
               <T weight="semibold" className="text-xs text-white">
-                {month.sales.count} sale{month.sales.count === 1 ? "" : "s"}
+                {story.sales.count} sale{story.sales.count === 1 ? "" : "s"}
               </T>
             </View>
           </View>
-          <AmountText amount={month.sales.amountMinor} tone="hero" size="2xl" className="mt-3" />
+          <AmountText amount={story.sales.amountMinor} tone="hero" size="2xl" className="mt-3" />
           <T className="mt-1 text-sm text-white/70">
-            {month.sales.count === 0
-              ? "Nothing recorded yet this month"
-              : `${month.sales.count} sale${month.sales.count === 1 ? "" : "s"} · average ${formatMoney(Math.round(month.sales.amountMinor / month.sales.count))}`}
+            {story.sales.count === 0
+              ? `Nothing recorded yet in ${story.label}`
+              : `${story.sales.count} sale${story.sales.count === 1 ? "" : "s"} · average ${formatMoney(Math.round(story.sales.amountMinor / story.sales.count))}`}
           </T>
 
-          {month.sales.amountMinor > 0 ? (
+          {story.sales.amountMinor > 0 ? (
             <View className="mt-4 border-t border-white/15 pt-3">
               <View className="h-2 flex-row overflow-hidden rounded-full bg-white/10">
-                <View className="bg-white/75" style={{ width: `${(100 * month.creditMinor) / month.sales.amountMinor}%` }} />
+                <View className="bg-white/75" style={{ width: `${(100 * story.creditMinor) / story.sales.amountMinor}%` }} />
                 <View className="flex-1 bg-white/25" />
               </View>
               <View className="mt-2 flex-row justify-between">
                 <T className="text-xs text-white/60">
-                  Cash {formatMoney(month.sales.amountMinor - month.creditMinor)}
+                  Cash {formatMoney(story.sales.amountMinor - story.creditMinor)}
                 </T>
-                <T className="text-xs text-white/60">On credit {formatMoney(month.creditMinor)}</T>
+                <T className="text-xs text-white/60">On credit {formatMoney(story.creditMinor)}</T>
               </View>
-              {month.paymentsMinor > 0 ? (
+              {story.paymentsMinor > 0 ? (
                 <T className="mt-2 text-xs text-white/50">
-                  Debts settled this month · {formatMoney(month.paymentsMinor)}
+                  Debts settled · {formatMoney(story.paymentsMinor)}
+                </T>
+              ) : null}
+              {period !== "all" && (story.sales.amountMinor > 0 || story.previousMinor > 0) ? (
+                <T className="mt-2 text-xs text-white/50">
+                  vs the {story.windowDays} days before · {formatMoney(story.previousMinor)}
                 </T>
               ) : null}
             </View>
@@ -115,17 +138,25 @@ export default function ReportScreen() {
         </View>
       </View>
 
-      <DayBars days={month.days} bestDayLabel={month.bestDay?.label ?? null} />
+      {showChart ? (
+        <DayBars days={story.days} bestDayLabel={story.bestDay?.label ?? null} />
+      ) : (
+        <Card className="mt-4 px-4 py-3">
+          <T className="text-sm leading-5 text-ink-soft">
+            Daily bars stay off for this long a stretch - the totals above carry the story.
+          </T>
+        </Card>
+      )}
 
       <View className="mt-4 flex-row gap-3">
         <View className="flex-1">
           <Card flat className="px-4 py-3.5">
             <T className="text-xs text-ink-faint">Profit so far</T>
-            <AmountText amount={month.profitKnownMinor} size="lg" className="mt-1" />
+            <AmountText amount={story.profitKnownMinor} size="lg" className="mt-1" />
             <T className="mt-1 text-xs leading-4 text-ink-soft">
-              {month.unknownCostSaleCount > 0
-                ? `${month.unknownCostSaleCount} sale${month.unknownCostSaleCount === 1 ? "" : "s"} without a cost not counted`
-                : month.sales.count === 0
+              {story.unknownCostSaleCount > 0
+                ? `${story.unknownCostSaleCount} sale${story.unknownCostSaleCount === 1 ? "" : "s"} without a cost not counted`
+                : story.sales.count === 0
                   ? "Record sales and this fills in"
                   : "on items with a cost recorded"}
             </T>
@@ -153,8 +184,8 @@ export default function ReportScreen() {
           <View className="flex-1">
             <T className="text-[11px] uppercase tracking-wide text-ink-faint">Best day</T>
             <T weight="semibold" className="text-sm leading-5 text-ink" numberOfLines={1}>
-              {month.bestDay
-                ? `${month.bestDay.label} · ${formatMoney(month.bestDay.amountMinor)}`
+              {story.bestDay
+                ? `${story.bestDay.label} · ${formatMoney(story.bestDay.amountMinor)}`
                 : "No sales yet"}
             </T>
           </View>
@@ -166,7 +197,7 @@ export default function ReportScreen() {
           <View className="flex-1">
             <T className="text-[11px] uppercase tracking-wide text-ink-faint">Quiet days</T>
             <T weight="semibold" className="text-sm leading-5 text-ink" numberOfLines={1}>
-              {month.quietDays} so far
+              {story.quietDays} so far
             </T>
           </View>
         </Card>
@@ -298,6 +329,22 @@ function ShelfStat({ label, value, tone }: { label: string; value: string; tone:
   );
 }
 
+function PeriodChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      className={cn(
+        "rounded-full border px-4 py-2 active:opacity-75",
+        active ? "border-accent-deep bg-accent-deep" : "border-line bg-paper-card",
+      )}>
+      <T weight="medium" className={cn("text-xs", active ? "text-white" : "text-accent-deep")}>
+        {label}
+      </T>
+    </Pressable>
+  );
+}
+
 /**
  * The month's sales as plain flexbox bars - one per day so far. Zero days stay
  * as a faint stub (they're the quiet days) and the best day stands in gold.
@@ -313,7 +360,7 @@ function DayBars({ days, bestDayLabel }: { days: MonthStory["days"]; bestDayLabe
     <Card className="mt-4 p-4">
       <View className="flex-row items-center justify-between">
         <T weight="semibold" className="text-base text-ink">
-          Sales through the month
+          Sales over the period
         </T>
         <T className="text-xs text-ink-faint">
           {days.length} day{days.length === 1 ? "" : "s"} so far

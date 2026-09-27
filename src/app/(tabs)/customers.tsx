@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
+import { ImportCustomersCard } from "@/components/import-customers";
 import { Screen } from "@/components/ui/screen";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { Text as T } from "@/components/ui/text";
@@ -201,6 +202,8 @@ export default function CustomersScreen() {
           className="mt-4"
         />
       ) : null}
+
+      {!addOpen && canTransact ? <ImportCustomersCard onImported={invalidateCustomers} /> : null}
 
       <View className="mt-4 gap-1.5">
         <View className="flex-row items-center gap-2 rounded-xl border border-line bg-paper-card px-3">
