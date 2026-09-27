@@ -23,6 +23,7 @@ const productFields = {
   id: true,
   name: true,
   note: true,
+  barcode: true,
   priceMinor: true,
   costMinor: true,
   lowStockThreshold: true,
@@ -44,6 +45,7 @@ const idParam = z.object({ id: z.string().min(1) });
 const createSchema = z.object({
   name: z.string().trim().min(1).max(80),
   note: z.string().trim().max(240).optional(),
+  barcode: z.string().trim().max(32).optional(),
   priceMinor: z.number().int().positive(),
   costMinor: z.number().int().nonnegative(),
   lowStockThreshold: z.number().int().nonnegative().default(0),
@@ -56,6 +58,7 @@ const createSchema = z.object({
 const updateSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   note: z.string().trim().max(240).nullable().optional(),
+  barcode: z.string().trim().max(32).nullable().optional(),
   priceMinor: z.number().int().positive().optional(),
   costMinor: z.number().int().nonnegative().optional(),
   lowStockThreshold: z.number().int().nonnegative().optional(),
@@ -76,6 +79,23 @@ async function stockQty(scoped: { stockMovement: TenantScopedClient["stockMoveme
     _sum: { quantity: true },
   });
   return agg._sum.quantity ?? 0;
+}
+
+// Barcodes are unique per shop so a scan always lands on one product. The
+// check is a QoL guard; the (tenantId, barcode) unique constraint catches any
+// race underneath and surfaces as a 500 if two POSTs slip through.
+async function assertBarcodeAvailable(
+  scoped: { product: TenantScopedClient["product"] },
+  tenantId: string,
+  barcode: string | null | undefined,
+  excludeId?: string,
+) {
+  if (!barcode) return;
+  const existing = await scoped.product.findFirst({
+    where: { tenantId, barcode, NOT: excludeId ? { id: excludeId } : undefined },
+    select: { id: true },
+  });
+  if (existing) throw new HttpError(400, "A product with that barcode already exists");
 }
 
 productsRouter.get(
@@ -131,6 +151,7 @@ productsRouter.post(
       "POST",
       "/api/products",
       async (tx) => {
+        await assertBarcodeAvailable(tx, auth.tenantId, input.barcode);
         const created = await tx.product.create({
           // tenantId is explicit for the types; the scoped hook overwrites it
           // regardless, so a caller could never spoof another tenant.
@@ -138,6 +159,7 @@ productsRouter.post(
             tenantId: auth.tenantId,
             name: input.name,
             note: input.note,
+            barcode: input.barcode && input.barcode.length > 0 ? input.barcode : null,
             priceMinor: input.priceMinor,
             costMinor: input.costMinor,
             lowStockThreshold: input.lowStockThreshold,
@@ -176,6 +198,7 @@ productsRouter.patch(
   requireRole(MembershipRole.OWNER),
   asyncHandler(async (req, res) => {
     const scoped = scopedFor(req as AuthedRequest);
+    const auth = (req as AuthedRequest).auth;
     const { id } = idParam.parse(req.params);
     const input = updateSchema.parse(req.body);
     if (Object.keys(input).length === 0) throw new HttpError(400, "Nothing to update");
@@ -183,7 +206,13 @@ productsRouter.patch(
     const exists = await scoped.product.findFirst({ where: { id }, select: { id: true } });
     if (!exists) throw new HttpError(404, "Product not found");
 
-    await scoped.product.updateMany({ where: { id }, data: input });
+    let data = { ...input };
+    if (data.barcode === "") data.barcode = null;
+    if (data.barcode !== undefined) {
+      await assertBarcodeAvailable(scoped, auth.tenantId, data.barcode, id);
+    }
+
+    await scoped.product.updateMany({ where: { id }, data });
     const product = await scoped.product.findFirst({ where: { id }, select: productFields });
     res.json({ ...product, stockQty: await stockQty(scoped, id) });
   }),

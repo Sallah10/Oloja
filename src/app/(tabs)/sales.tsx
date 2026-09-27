@@ -15,6 +15,7 @@ import { Screen } from "@/components/ui/screen";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { Text as T } from "@/components/ui/text";
 import { useFeedback } from "@/components/feedback";
+import { ScanBarcodeButton } from "@/components/scan-input";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -147,6 +148,24 @@ export default function SalesScreen() {
     setError(null);
   };
 
+  const onScanBarcode = (code: string) => {
+    const match = products.find(
+      (p) =>
+        p.barcode != null &&
+        p.barcode.replace(/\s+/g, "") === code.replace(/\s+/g, ""),
+    );
+    if (!match) {
+      feedback.show("No product with that barcode - add it in Stock first", "error");
+      return;
+    }
+    if (match.stockQty <= 0) {
+      feedback.show(`${match.name} is out of stock`, "error");
+      return;
+    }
+    selectProduct(match.id);
+    feedback.show(`${match.name} · ${formatMoney(match.priceMinor)}`, "success");
+  };
+
   const submitSale = () => {
     setError(null);
     if (!selectedProduct) return setError("Pick a product first");
@@ -255,6 +274,9 @@ export default function SalesScreen() {
                 }}
               />
             )}
+            <View className="items-end">
+              <ScanBarcodeButton label="Scan a product" onScan={onScanBarcode} />
+            </View>
           </View>
 
           {selectedProduct ? (

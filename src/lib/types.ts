@@ -2,6 +2,7 @@ export type ProductSummary = {
   id: string;
   name: string;
   note: string | null;
+  barcode: string | null;
   priceMinor: number;
   costMinor: number;
   lowStockThreshold: number;

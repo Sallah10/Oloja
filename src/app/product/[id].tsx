@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Screen } from "@/components/ui/screen";
 import { Text } from "@/components/ui/text";
+import { ScanBarcodeButton } from "@/components/scan-input";
 import { useFeedback } from "@/components/feedback";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
@@ -21,13 +22,14 @@ import { ProductSummary, StockMovement } from "@/lib/types";
 
 type StockType = "RESTOCK" | "ADJUST";
 
-type Draft = { name: string; price: string; cost: string; threshold: string };
+type Draft = { name: string; price: string; cost: string; threshold: string; barcode: string };
 
 const toDraft = (p: ProductSummary): Draft => ({
   name: p.name,
   price: String(p.priceMinor / 100),
   cost: String(p.costMinor / 100),
   threshold: String(p.lowStockThreshold),
+  barcode: p.barcode ?? "",
 });
 
 export default function ProductScreen() {
@@ -73,6 +75,7 @@ export default function ProductScreen() {
       priceMinor: number;
       costMinor: number;
       lowStockThreshold: number;
+      barcode?: string | null;
     }) => api(`/api/products/${id}`, { method: "PATCH", body: input }),
     onSuccess: () => {
       setDraft(null);
@@ -117,6 +120,7 @@ export default function ProductScreen() {
       costMinor,
       lowStockThreshold:
         Number.isFinite(thresholdQty) && thresholdQty > 0 ? thresholdQty : 0,
+      barcode: current.barcode.trim() || null,
     });
   };
 
@@ -181,6 +185,11 @@ export default function ProductScreen() {
             {product.lowStockThreshold > 0 ? (
               <Text className="mt-0.5 text-xs text-white/45">
                 Low-stock alert at {product.lowStockThreshold} units
+              </Text>
+            ) : null}
+            {product.barcode ? (
+              <Text className="mt-0.5 text-xs text-white/45">
+                Barcode · {product.barcode}
               </Text>
             ) : null}
           </View>
@@ -278,6 +287,14 @@ export default function ProductScreen() {
                   keyboardType="numeric"
                   helper="In units, not naira - flag when this many are left."
                 />
+                <Field
+                  label="Barcode (optional)"
+                  value={fields?.barcode ?? ""}
+                  onChangeText={(v) => setField("barcode", v)}
+                  placeholder="e.g. 6221085606614"
+                  helper="Scan from the shelf so the till finds it in one scan."
+                />
+                <ScanBarcodeButton onScan={(code) => setField("barcode", code)} />
               </View>
               {editError ? <Text className="mt-3 text-sm text-danger">{editError}</Text> : null}
               <Button

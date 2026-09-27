@@ -6,6 +6,7 @@ import { FlatList, Pressable, RefreshControl, TextInput, View } from "react-nati
 
 import { useFeedback } from "@/components/feedback";
 import { ImportProductsCard } from "@/components/import-products";
+import { ScanBarcodeButton } from "@/components/scan-input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,6 +34,7 @@ export default function InventoryScreen() {
 
   const [manualAdd, setManualAdd] = useState(false);
   const [name, setName] = useState("");
+  const [barcode, setBarcode] = useState("");
   const [price, setPrice] = useState("");
   const [cost, setCost] = useState("");
   const [threshold, setThreshold] = useState("");
@@ -75,12 +77,15 @@ export default function InventoryScreen() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return products;
-    return products.filter((p) => p.name.toLowerCase().includes(q));
+    return products.filter(
+      (p) => p.name.toLowerCase().includes(q) || (p.barcode ?? "").toLowerCase().includes(q),
+    );
   }, [products, query]);
 
   const addMutation = useMutation({
     mutationFn: (input: {
       name: string;
+      barcode?: string;
       priceMinor: number;
       costMinor: number;
       lowStockThreshold: number;
@@ -88,6 +93,7 @@ export default function InventoryScreen() {
     }) => api<{ id: string }>("/api/products", { method: "POST", body: input }),
     onSuccess: () => {
       setName("");
+      setBarcode("");
       setPrice("");
       setCost("");
       setThreshold("");
@@ -143,6 +149,7 @@ export default function InventoryScreen() {
 
     addMutation.mutate({
       name: name.trim(),
+      barcode: barcode.trim() || undefined,
       priceMinor,
       costMinor,
       lowStockThreshold,
@@ -233,6 +240,14 @@ export default function InventoryScreen() {
               placeholder="e.g. 10 (optional)"
               helper="In units, not naira. We'll flag it when stock drops to this."
             />
+            <Field
+              label="Barcode (optional)"
+              value={barcode}
+              onChangeText={setBarcode}
+              placeholder="e.g. 6221085606614"
+              helper="Stored on the product so a till scan finds it straight away."
+            />
+            <ScanBarcodeButton onScan={setBarcode} />
           </View>
           {formError ? <T className="mt-3 text-sm text-danger">{formError}</T> : null}
           <View className="mt-4 flex-row gap-2">
@@ -282,7 +297,7 @@ export default function InventoryScreen() {
   return (
     <Screen>
       <FlatList
-        className="flex-1"
+        className="flex-1 pb-4"
         data={filtered}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={header}
@@ -353,6 +368,11 @@ export default function InventoryScreen() {
                         ? ` · margin ${formatMoney(item.priceMinor - item.costMinor)}`
                         : " · no cost yet"}
                     </T>
+                    {item.barcode ? (
+                      <T className="mt-0.5 text-[10px] tracking-wide text-ink-faint">
+                        {item.barcode}
+                      </T>
+                    ) : null}
                   </View>
                   <View className="items-end shrink-0">
                     <Badge
