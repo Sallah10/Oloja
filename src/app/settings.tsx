@@ -1,5 +1,5 @@
-import * as Clipboard from "expo-clipboard";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { FlatList, Modal, Pressable, Switch, View } from "react-native";
@@ -66,23 +66,25 @@ function ShopSwitcher({
           <Text className="mt-1 text-sm text-ink-soft">
             Pick the ledger you want to open next.
           </Text>
-          <FlatList
-            data={tenants}
-            keyExtractor={(item) => item.tenantId}
-            className="mt-4"
-            renderItem={({ item }) => (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  void switchShop(item.tenantId);
-                  onClose();
-                }}
-                className="flex-row items-center justify-between rounded-xl border border-line bg-paper px-4 py-4">
-                <Text className="text-base font-medium text-ink">{item.name}</Text>
-                <Badge tone={roleBadge[item.role]} label={roleLabel[item.role]} />
-              </Pressable>
-            )}
-          />
+          <View className="flex flex-col gap-4">
+            <FlatList
+              data={tenants}
+              keyExtractor={(item) => item.tenantId}
+              className="mt-4 flex flex-col gap-4"
+              renderItem={({ item }) => (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    void switchShop(item.tenantId);
+                    onClose();
+                  }}
+                  className="flex-row items-center justify-between rounded-xl border border-line bg-paper px-4 py-4">
+                  <Text className="text-base font-medium text-ink">{item.name}</Text>
+                  <Badge tone={roleBadge[item.role]} label={roleLabel[item.role]} />
+                </Pressable>
+              )}
+            />
+          </View>
           <Button
             title="Done"
             variant="secondary"
@@ -212,6 +214,36 @@ export default function SettingsScreen() {
     await signOut();
     router.dismissAll?.();
     router.replace("/login");
+  };
+
+  const toggleDaily = async (value: boolean) => {
+    if (value && !(await requestNotificationPermission())) {
+      setError("Notifications are off system-wide. Allow Oloja in your phone settings, then try again.");
+      return;
+    }
+    setError(null);
+    const updated = await updateNotificationSettings({ dailyEnabled: value });
+    setNotif({ ...updated });
+  };
+
+  const chooseDailyTime = async (hour: number, minute: number) => {
+    if (!(await requestNotificationPermission())) {
+      setError("Notifications are off system-wide. Allow Oloja in your phone settings, then try again.");
+      return;
+    }
+    setError(null);
+    const updated = await updateNotificationSettings({
+      dailyEnabled: true,
+      dailyHour: hour,
+      dailyMinute: minute,
+    });
+    setNotif({ ...updated });
+  };
+
+  const toggleEvents = async (value: boolean) => {
+    setError(null);
+    const updated = await updateNotificationSettings({ eventEnabled: value });
+    setNotif({ ...updated });
   };
 
   const expiry = invites?.invite?.expiresAt
@@ -407,6 +439,57 @@ export default function SettingsScreen() {
         </Card>
       ) : null}
 
+      {notifSupported ? (
+        <View className="mt-6">
+          <SectionHeader title="Notifications" />
+          <Card className="overflow-hidden">
+            <SettingRow
+              label="Daily whisper"
+              hint="A quiet morning note when your ledger has a read for the day."
+              value={notif.dailyEnabled}
+              onChange={(value) => void toggleDaily(value)}
+            />
+            {notif.dailyEnabled ? (
+              <View className="border-t border-line px-5 py-4">
+                <Text className="text-xs text-ink-soft">Time of day:</Text>
+                <View className="mt-2 flex-row flex-wrap gap-2">
+                  {DAILY_TIMES.map((t) => {
+                    const active =
+                      notif.dailyHour === t.hour && notif.dailyMinute === t.minute;
+                    return (
+                      <Pressable
+                        key={t.label}
+                        accessibilityRole="button"
+                        onPress={() => void chooseDailyTime(t.hour, t.minute)}
+                        className={cn(
+                          "rounded-full border px-3 py-1.5",
+                          active ? "border-accent bg-accent-tint" : "border-line bg-paper",
+                        )}>
+                        <Text
+                          className={cn(
+                            "text-xs font-medium",
+                            active ? "text-accent-deep" : "text-ink-soft",
+                          )}>
+                          {t.label} · {t.time}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text className="mt-2 text-[11px] text-ink-faint">
+                  This schedules on this device only - it works even when the app is closed.
+                </Text>
+              </View>
+            ) : null}
+            <SettingRow
+              label="Event notices"
+              hint="Ping for things worth knowing now: out of stock, restock limits hit, a balance cleared."
+              value={notif.eventEnabled}
+              onChange={(value) => void toggleEvents(value)}
+            />
+          </Card>
+        </View>
+      ) : null}
       <Button title="Sign out" variant="danger" className="mt-8" onPress={() => void handleSignOut()} />
     </Screen>
   );

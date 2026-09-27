@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Href, useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Pressable, View } from "react-native";
 
 import { Card } from "@/components/ui/card";
@@ -33,14 +33,16 @@ export function WhisperSection({
   transactions: TransactionSummary[];
 }) {
   const router = useRouter();
-  const thread = whisper(products, customers, transactions);
+  const thread = useMemo(
+    () => whisper(products, customers, transactions),
+    [products, customers, transactions],
+  );
 
-  const dangerKey = thread.cards.filter((c) => c.tone === "danger").map((c) => c.id).join(",");
   useEffect(() => {
-    if (!dangerKey) return;
     const urgent = thread.cards.filter((c) => c.tone === "danger");
+    if (urgent.length === 0) return;
     void notifyUrgentCards(urgent);
-  }, [dangerKey]);
+  }, [thread]);
 
   return (
     <View className="mt-6">

@@ -120,23 +120,27 @@ export function whisper(
     });
   }
 
-  // Running low on something that is still moving fast - restock now.
+  // Running low on something that is still moving - the restock limit is hit.
+  // Slower movers get counted over the fortnight, not just the week, so the
+  // groan of an exhausted limit is never missed.
   const restockItem = products
     .filter((p) => p.stockQty > 0 && p.lowStockThreshold > 0 && p.stockQty <= p.lowStockThreshold)
     .map((p) => ({ product: p, u: stats.get(p.id) }))
-    .filter((x) => x.u && x.u.units7 > 0)
+    .filter((x) => x.u && x.u.units14 > 0)
     .sort((a, b) => (b.u?.units7 ?? 0) - (a.u?.units7 ?? 0))[0];
   if (restockItem) {
     const { product, u } = restockItem;
-    const units = u?.units7 ?? 0;
+    const units7 = u?.units7 ?? 0;
+    const units = units7 > 0 ? units7 : u?.units14 ?? 0;
+    const period = units7 > 0 ? "week" : "fortnight";
     candidates.push({
       score: 80 + units * 4,
       card: {
         id: `low-${product.id}`,
         tone: "danger",
         icon: "basket-outline",
-        title: `Restock ${product.name}`,
-        body: `Down to ${product.stockQty} and it sold ${units} in the last week. Restock before you start turning people away.`,
+        title: `Restock ${product.name}\u00B7 limit reached`,
+        body: `It's at its restock limit with ${product.stockQty} left and still sold ${units} in the last ${period}. Restock before takers walk.`,
         action: { label: "Restock", path: "/inventory" },
       },
     });
@@ -350,7 +354,38 @@ export function advice(
   now: Date = new Date(),
 ): WhisperCard[] {
   const h = businessHealth(products, customers, transactions, now);
+  const stats = productStats(transactions);
   const candidates: { card: WhisperCard; score: number }[] = [];
+
+  // A mover still above its restock limit, but draining: at the last
+  // fortnight's pace the shelf runs dry - the "limit exhaustion" warning.
+  const runway = products
+    .filter((p) => {
+      if (p.stockQty <= p.lowStockThreshold || p.lowStockThreshold <= 0) return false;
+      const u = stats.get(p.id);
+      return !!u && u.units14 > 0;
+    })
+    .map((p) => {
+      const u = stats.get(p.id)!;
+      const daily = u.units14 / 14;
+      return { product: p, eta: p.stockQty / daily };
+    })
+    .filter((r) => r.eta > 0 && r.eta <= 5)
+    .sort((a, b) => a.eta - b.eta)[0];
+  if (runway) {
+    const days = Math.max(1, Math.round(runway.eta));
+    candidates.push({
+      score: 34,
+      card: {
+        id: `runway-${runway.product.id}`,
+        tone: "accent",
+        icon: "hourglass-outline",
+        title: `${runway.product.name} runs dry in ~${days} day${days === 1 ? "" : "s"}`,
+        body: `At the last fortnight's pace, the shelf empties in about ${days} day${days === 1 ? "" : "s"}. Stock up before the takers go looking elsewhere.`,
+        action: { label: "Stock up", path: "/inventory" },
+      },
+    });
+  }
 
   // Capital sitting on the shelf instead of working.
   if (h.capitalInGoodsMinor > 0 && h.parkedMinor > 0) {

@@ -195,10 +195,13 @@ export async function notifyUrgentCards(cards: WhisperCard[]): Promise<void> {
   if (!first) return;
   try {
     const Notifications = await notifications();
-    await Notifications.presentNotificationAsync({
-      title: `Oloja · ${first.title}`,
-      body: first.body,
-      sound: "default",
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `Oloja · ${first.title}`,
+        body: first.body,
+        sound: "default",
+      },
+      trigger: null,
     });
     settings.lastFired[first.id] = today;
     await save(settings);
@@ -214,10 +217,13 @@ export async function notifyBalanceCleared(customerName: string): Promise<void> 
   if (!settings.eventEnabled) return;
   try {
     const Notifications = await notifications();
-    await Notifications.presentNotificationAsync({
-      title: `${customerName} is all paid up`,
-      body: "Their balance just cleared to zero. One less thing to chase.",
-      sound: "default",
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `${customerName} is all paid up`,
+        body: "Their balance just cleared to zero. One less thing to chase.",
+        sound: "default",
+      },
+      trigger: null,
     });
   } catch {
     // Quiet by design.
