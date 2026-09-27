@@ -9,9 +9,11 @@
     "userInterfaceStyle": "light",
     "backgroundColor": "#FBF6EE",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.oloja.app"
     },
     "android": {
+      "package": "com.oloja.app",
       "adaptiveIcon": {
         "backgroundColor": "#FBF6EE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

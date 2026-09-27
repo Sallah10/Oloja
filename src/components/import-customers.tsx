@@ -47,7 +47,11 @@ export function ImportCustomersCard({ onImported }: { onImported: () => void }) 
   const downloadTemplate = async () => {
     setDownloading(true);
     try {
-      await downloadTextFile("oloja-customers.csv", CUSTOMER_CSV_TEMPLATE);
+      const outcome = await downloadTextFile("oloja-customers.csv", CUSTOMER_CSV_TEMPLATE);
+      if (outcome === "downloaded") feedback.show("Template downloaded", "success");
+      else if (outcome === "shared") feedback.show("Template ready - pick where to save it", "info");
+      else if (outcome === "copied") feedback.show("Sharing isn't available - template copied instead", "info");
+      else feedback.show("Could not download - use Copy template above", "error");
     } finally {
       setDownloading(false);
     }

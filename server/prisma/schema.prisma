@@ -137,6 +137,7 @@ model Product {
 
   name              String
   note              String?
+  barcode           String? // EAN/UPC/QR as printed on the shelf
   priceMinor        Int // selling price, minor units
   costMinor         Int // latest purchase cost, minor units (for stock valuation)
   lowStockThreshold Int  @default(0)
@@ -148,6 +149,7 @@ model Product {
   stockMovements StockMovement[]
   transactions   Transaction[]
 
+  @@unique([tenantId, barcode])
   @@index([tenantId, createdAt])
   @@index([tenantId, archived])
 }
