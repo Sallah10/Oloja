@@ -12,11 +12,17 @@ import { Screen } from "@/components/ui/screen";
 import { Text } from "@/components/ui/text";
 import { ScanBarcodeButton } from "@/components/scan-input";
 import { useFeedback } from "@/components/feedback";
+import { ProductThumb } from "@/components/product-thumb";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { ApiError } from "@/lib/errors";
 import { formatMoney, toMinorUnits } from "@/lib/money";
+import {
+  pickAndUploadProductImage,
+  removeProductImage,
+  type PhotoSource,
+} from "@/lib/product-image";
 import { formatDateTime } from "@/lib/time";
 import { ProductSummary, StockMovement } from "@/lib/types";
 
@@ -46,6 +52,8 @@ export default function ProductScreen() {
   const [stockCost, setStockCost] = useState("");
   const [stockNote, setStockNote] = useState("");
   const [stockError, setStockError] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -139,6 +147,33 @@ export default function ProductScreen() {
     }
   };
 
+  const handlePhoto = async (source: PhotoSource) => {
+    setPhotoBusy(true);
+    setPhotoError(null);
+    const result = await pickAndUploadProductImage(id, source);
+    setPhotoBusy(false);
+    if (!result.ok) {
+      if (result.cancelled) return;
+      setPhotoError(result.message ?? "That photo could not be saved");
+      return;
+    }
+    feedback.show("Photo saved", "success");
+    void invalidate();
+  };
+
+  const handleRemovePhoto = async () => {
+    setPhotoBusy(true);
+    setPhotoError(null);
+    const result = await removeProductImage(id);
+    setPhotoBusy(false);
+    if (!result.ok) {
+      setPhotoError(result.message ?? "That photo could not be removed");
+      return;
+    }
+    feedback.show("Photo removed", "success");
+    void invalidate();
+  };
+
   if (!isSignedIn) return <Redirect href="/login" />;
 
   const movements = movementsQuery.data?.movements ?? [];
@@ -193,6 +228,53 @@ export default function ProductScreen() {
               </Text>
             ) : null}
           </View>
+
+          {canManageProducts ? (
+            <Card className="p-4">
+              <Text weight="medium" className="text-base text-ink">
+                Shelf photo
+              </Text>
+              <Text className="mt-1 text-[13px] leading-5 text-ink-soft">
+                A picture on the shelf stops a mix-up at the counter. It is shrunk on this phone
+                before it is sent.
+              </Text>
+
+              <View className="mt-3 flex-row items-center gap-3">
+                <ProductThumb
+                  productId={product.id}
+                  hasImage={product.hasImage}
+                  imageVersion={product.imageVersion}
+                  name={product.name}
+                  size="lg"
+                />
+                <View className="flex-1 gap-2">
+                  <Button
+                    title={photoBusy ? "Working." : "Take a photo"}
+                    variant="secondary"
+                    disabled={photoBusy}
+                    onPress={() => void handlePhoto("camera")}
+                  />
+                  <Button
+                    title="Choose from gallery"
+                    variant="secondary"
+                    disabled={photoBusy}
+                    onPress={() => void handlePhoto("library")}
+                  />
+                  {product.hasImage ? (
+                    <Button
+                      title="Remove photo"
+                      variant="danger"
+                      disabled={photoBusy}
+                      onPress={() => void handleRemovePhoto()}
+                    />
+                  ) : null}
+                </View>
+              </View>
+              {photoError ? (
+                <Text className="mt-2 text-sm text-danger-deep">{photoError}</Text>
+              ) : null}
+            </Card>
+          ) : null}
 
           {canTransact ? (
             <Card className="p-4">

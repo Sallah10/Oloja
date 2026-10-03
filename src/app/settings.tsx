@@ -19,10 +19,13 @@ import { ApiError } from "@/lib/errors";
 import {
   cachedNotificationSettings,
   notificationsSupported,
+  registerForServerPush,
   requestNotificationPermission,
+  sendServerPushTest,
+  serverPushIsRegistered,
   updateNotificationSettings,
-  type NotificationSettings,
 } from "@/lib/notifications";
+import type { NotificationSettings } from "@/lib/notifications";
 import { InviteInfo, MembershipRole, ShopMember, TenantMembership } from "@/lib/types";
 
 type InvitesData = {
@@ -151,6 +154,15 @@ export default function SettingsScreen() {
   const [notif, setNotif] = useState<NotificationSettings>(() => ({
     ...cachedNotificationSettings(),
   }));
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushStatus, setPushStatus] = useState<string | null>(null);
+
+  const devicesQuery = useQuery({
+    queryKey: ["push-devices"],
+    queryFn: () => api<{ devices: { id: string; platform: string }[] }>("/api/notifications/devices"),
+    enabled: isOwner && notificationsSupported(),
+  });
+  const devices = devicesQuery.data?.devices ?? [];
 
   const notifSupported = notificationsSupported();
 
@@ -244,6 +256,32 @@ export default function SettingsScreen() {
     setError(null);
     const updated = await updateNotificationSettings({ eventEnabled: value });
     setNotif({ ...updated });
+  };
+
+  // Server push needs BOTH the system permission and a token handed to the
+  // server, so the test button does both in one tap rather than dead-ending on
+  // an owner who never found the notification switch.
+  const handlePushTest = async () => {
+    setPushBusy(true);
+    setPushStatus(null);
+    try {
+      const state = await registerForServerPush();
+      if (state === "unavailable" && !serverPushIsRegistered()) {
+        setPushStatus(
+          "Not ready yet: allow notifications for Oloja in your phone settings, then tap again. " +
+            "Push also needs the installed Android app.",
+        );
+        return;
+      }
+
+      const result = await sendServerPushTest();
+      setPushStatus(result.message);
+      if (result.ok) await devicesQuery.refetch();
+    } catch (err) {
+      setPushStatus(err instanceof ApiError ? err.message : "Could not reach the server");
+    } finally {
+      setPushBusy(false);
+    }
   };
 
   const expiry = invites?.invite?.expiresAt
@@ -487,6 +525,43 @@ export default function SettingsScreen() {
               value={notif.eventEnabled}
               onChange={(value) => void toggleEvents(value)}
             />
+            {isOwner ? (
+              <View className="border-t border-line px-5 py-4">
+                <Text className="text-sm font-medium text-ink">Shelf alerts by push</Text>
+                <Text className="mt-1 text-[13px] leading-5 text-ink-soft">
+                  When stock crosses its alert limit, or a sale empties a product, the server pings
+                  every phone you allow below - even with the app closed.
+                </Text>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Send a test push"
+                  disabled={pushBusy}
+                  onPress={handlePushTest}
+                  className={cn(
+                    "mt-3 flex-row items-center justify-center rounded-xl border border-accent bg-accent-tint px-4 py-3",
+                    pushBusy && "opacity-60",
+                  )}>
+                  <Text className="text-base font-semibold text-accent-deep">
+                    {pushBusy ? "Sending..." : "Send a test push"}
+                  </Text>
+                </Pressable>
+
+                <Text
+                  className={cn(
+                    "mt-2 text-[13px] leading-5",
+                    pushStatus === "ok" ? "text-success-deep" : "text-ink-faint",
+                  )}>
+                  {pushStatus ?? `Registered phones: ${devices.length}`}
+                </Text>
+
+                {devices.length > 1 ? (
+                  <Text className="mt-1 text-[13px] leading-5 text-ink-faint">
+                    Phones you no longer use get cleared automatically once the app is uninstalled.
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
           </Card>
         </View>
       ) : null}

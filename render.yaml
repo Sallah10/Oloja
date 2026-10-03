@@ -11,7 +11,9 @@
 #        DATABASE_URL      = Neon POOLER url   (ends with -pooler)
 #        DIRECT_URL        = Neon PLAIN url    (no -pooler)
 #        EXPO_ACCESS_TOKEN = expo.dev access token (only needed for push)
-#      All three are marked `sync: false` below, so Render never sees them in git.
+#        GEMINI_API_KEY    = aistudio.google.com key (optional; only rewords the
+#                           weekly letter - without it the app writes it itself)
+#      All of them are marked `sync: false` below, so Render never sees them in git.
 #   4. Deploy runs automatically. Confirm it is alive with:
 #        curl https://oloja-api.onrender.com/health   ->  {"status":"ok"}
 #   5. The app's .env already points at that URL. Rebuild the APK.
@@ -45,3 +47,9 @@ services:
         sync: false
       - key: EXPO_ACCESS_TOKEN
         sync: false
+      # Optional: only used to reword the weekly letter. Without it the app
+      # writes the same letter on-device, so the feature simply stays local.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash

@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { HttpError, asyncHandler } from "../lib/http-error.js";
 import { runIdempotent } from "../lib/idempotency.js";
+import { notifyShop } from "../lib/notify.js";
 import { TenantScopedClient, tenantScoped } from "../lib/scoped.js";
 import { AuthedRequest, NOT_VIEW, requireAuth, requireRole } from "../middleware/auth.js";
 
@@ -29,7 +30,35 @@ const productFields = {
   lowStockThreshold: true,
   archived: true,
   createdAt: true,
+  // Cheap proxy for "has a photo": the mime is only ever set together with the
+  // bytes, so this says yes without dragging every photo into a list query.
+  imageMime: true,
+  updatedAt: true,
 } as const;
+
+type ProductRow = Record<string, unknown> & { imageMime?: string | null; updatedAt: Date | string };
+
+/** Every product read goes through here so `hasImage` is always present. */
+/**
+ * `hasImage` says whether a photo exists without the bytes, and `imageVersion`
+ * is the clock it was written at. The phone puts the version in the image URL,
+ * so replacing a photo is a new URL - expo-image would otherwise serve the old
+ * one out of its cache until the day is over.
+ */
+function withPhoto<T extends ProductRow>(product: T): Omit<T, "imageMime"> & {
+  hasImage: boolean;
+  imageVersion: string | null;
+} {
+  const { imageMime, ...rest } = product;
+  const hasImage = imageMime !== null && imageMime !== undefined;
+  const stamp = rest.updatedAt;
+  const clock = stamp instanceof Date ? stamp : new Date(String(stamp));
+  return {
+    ...rest,
+    hasImage,
+    imageVersion: hasImage && !Number.isNaN(clock.getTime()) ? clock.toISOString() : null,
+  };
+}
 
 const movementFields = {
   id: true,
@@ -118,7 +147,7 @@ productsRouter.get(
 
     const qty = new Map(byProduct.map((r) => [r.productId, r._sum.quantity ?? 0]));
     res.json({
-      products: products.map((p) => ({ ...p, stockQty: qty.get(p.id) ?? 0 })),
+      products: products.map((p) => ({ ...withPhoto(p), stockQty: qty.get(p.id) ?? 0 })),
     });
   }),
 );
@@ -132,7 +161,112 @@ productsRouter.get(
     const product = await scoped.product.findFirst({ where: { id }, select: productFields });
     if (!product) throw new HttpError(404, "Product not found");
 
-    res.json({ ...product, stockQty: await stockQty(scoped, id) });
+    res.json({ ...withPhoto(product), stockQty: await stockQty(scoped, id) });
+  }),
+);
+
+// --- photos -----------------------------------------------------------------
+//
+// Stored as BYTEA on the product row (Render's disk is ephemeral). The app
+// downscales to ~800px JPEG before upload, so these routes only ever see small
+// JPEGs; anything else is refused rather than stored.
+
+const MAX_IMAGE_BYTES = 1_500_000;
+const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
+
+const imageSchema = z.object({
+  /** base64 JPEG, no data: prefix. */
+  data: z.string().min(64).max(Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 1024),
+  width: z.number().int().positive().max(4000).optional(),
+  height: z.number().int().positive().max(4000).optional(),
+});
+
+/**
+ * A photo is part of the product record, so only the owner changes it - same
+ * rule as editing the price or the name. Cashiers and viewers may look.
+ */
+productsRouter.put(
+  "/products/:id/image",
+  requireRole(MembershipRole.OWNER),
+  asyncHandler(async (req, res) => {
+    const scoped = scopedFor(req as AuthedRequest);
+    const { id } = idParam.parse(req.params);
+    const input = imageSchema.parse(req.body);
+
+    const exists = await scoped.product.findFirst({ where: { id }, select: { id: true } });
+    if (!exists) throw new HttpError(404, "Product not found");
+
+    const bytes = Buffer.from(input.data, "base64");
+    if (bytes.length === 0) throw new HttpError(400, "That photo was empty");
+    if (bytes.length > MAX_IMAGE_BYTES) {
+      throw new HttpError(400, "That photo is too large - pick a smaller one");
+    }
+    // The client sends JPEG only; refuse anything else rather than storing a
+    // format the app cannot render.
+    if (!bytes.subarray(0, 3).equals(JPEG_MAGIC)) {
+      throw new HttpError(400, "Only JPEG photos are supported");
+    }
+
+    await scoped.product.updateMany({
+      where: { id },
+      data: {
+        imageBytes: bytes,
+        imageMime: "image/jpeg",
+        imageWidth: input.width ?? null,
+        imageHeight: input.height ?? null,
+      },
+    });
+
+    res.json({ ok: true, bytes: bytes.length });
+  }),
+);
+
+productsRouter.delete(
+  "/products/:id/image",
+  requireRole(MembershipRole.OWNER),
+  asyncHandler(async (req, res) => {
+    const scoped = scopedFor(req as AuthedRequest);
+    const { id } = idParam.parse(req.params);
+
+    const { count } = await scoped.product.updateMany({
+      where: { id },
+      data: { imageBytes: null, imageMime: null, imageWidth: null, imageHeight: null },
+    });
+    if (count === 0) throw new HttpError(404, "Product not found");
+
+    res.json({ ok: true });
+  }),
+);
+
+/**
+ * Served through the normal auth middleware, so expo-image needs the bearer
+ * token (see ProductThumb in the app). ETag on updatedAt lets the phone keep
+ * showing its cached copy until the photo actually changes.
+ */
+productsRouter.get(
+  "/products/:id/image",
+  asyncHandler(async (req, res) => {
+    const scoped = scopedFor(req as AuthedRequest);
+    const { id } = idParam.parse(req.params);
+
+    const product = await scoped.product.findFirst({
+      where: { id },
+      select: { imageBytes: true, imageMime: true, updatedAt: true },
+    });
+    if (!product?.imageBytes) throw new HttpError(404, "This product has no photo");
+
+    const etag = `W/"p-${product.updatedAt.getTime()}"`;
+    if (req.headers["if-none-match"] === etag) {
+      res.status(304).end();
+      return;
+    }
+
+    res.setHeader("Content-Type", product.imageMime ?? "image/jpeg");
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    res.setHeader("ETag", etag);
+    // end(), not send(): send() would tag the type with a charset, which has no
+    // meaning on a JPEG.
+    res.end(product.imageBytes);
   }),
 );
 
@@ -186,7 +320,7 @@ productsRouter.post(
           openingQty = input.initialStockQty;
         }
 
-        return { ...created, stockQty: openingQty };
+        return { ...withPhoto(created), stockQty: openingQty };
       },
     );
     res.status(201).json(product);
@@ -214,7 +348,7 @@ productsRouter.patch(
 
     await scoped.product.updateMany({ where: { id }, data });
     const product = await scoped.product.findFirst({ where: { id }, select: productFields });
-    res.json({ ...product, stockQty: await stockQty(scoped, id) });
+    res.json({ ...withPhoto(product!), stockQty: await stockQty(scoped, id) });
   }),
 );
 
@@ -236,7 +370,7 @@ productsRouter.post(
       async (tx) => {
         const product = await tx.product.findFirst({
           where: { id },
-          select: { id: true, costMinor: true },
+          select: { id: true, costMinor: true, name: true, lowStockThreshold: true },
         });
         if (!product) throw new HttpError(404, "Product not found");
 
@@ -275,11 +409,32 @@ productsRouter.post(
           await tx.product.updateMany({ where: { id }, data: { costMinor: unitCostMinor } });
         }
 
-        return { movement, stockQty: await stockQty(tx, id) };
+        return {
+          movement,
+          stockQty: await stockQty(tx, id),
+          productName: product.name,
+          threshold: product.lowStockThreshold,
+        };
       },
     );
 
-    res.status(201).json(result);
+    // Crossing INTO low stock is the moment worth a phone alert; staying low
+    // after every restock would be noise.
+    const before = result.stockQty - input.quantity;
+    const crossedLow =
+      result.threshold > 0 && before > result.threshold && result.stockQty <= result.threshold;
+    if (crossedLow) {
+      void notifyShop(auth.tenantId, {
+        title: result.stockQty === 0 ? `${result.productName} is out of stock` : `Low: ${result.productName}`,
+        body:
+          result.stockQty === 0
+            ? "Nothing left on the shelf. Add more before the next customer asks."
+            : `${result.stockQty} left - your alert is ${result.threshold}.`,
+        data: { screen: "product", productId: id },
+      });
+    }
+
+    res.status(201).json({ movement: result.movement, stockQty: result.stockQty });
   }),
 );
 

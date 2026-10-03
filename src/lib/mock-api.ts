@@ -247,6 +247,7 @@ function publicProduct(p: MockProduct) {
     archived: p.archived,
     createdAt: p.createdAt,
     stockQty: stockQty(p.id),
+    hasImage: false,
   };
 }
 

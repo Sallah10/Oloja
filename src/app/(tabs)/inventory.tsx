@@ -7,6 +7,7 @@ import { FlatList, Pressable, RefreshControl, TextInput, View } from "react-nati
 import { useFeedback } from "@/components/feedback";
 import { ImportProductsCard } from "@/components/import-products";
 import { ScanBarcodeButton } from "@/components/scan-input";
+import { ProductThumb } from "@/components/product-thumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -347,17 +348,26 @@ export default function InventoryScreen() {
                 onPress={() => router.push(`/product/${item.id}`)}
                 className="px-4 py-3.5">
                 <View className="flex-row items-center gap-3">
-                  <View
-                    className={cn(
-                      "h-10 w-10 items-center justify-center rounded-xl",
-                      out ? "bg-danger-tint" : low ? "bg-gold-tint" : "bg-accent-tint",
-                    )}>
-                    <Ionicons
-                      name={out ? "close" : low ? "alert" : "cube-outline"}
-                      size={17}
-                      color={out ? "#AC4431" : low ? "#B98A2F" : "#1F5D3C"}
+                  {item.hasImage ? (
+                    <ProductThumb
+                      productId={item.id}
+                      hasImage={item.hasImage}
+                      imageVersion={item.imageVersion}
+                      name={item.name}
                     />
-                  </View>
+                  ) : (
+                    <View
+                      className={cn(
+                        "h-10 w-10 items-center justify-center rounded-xl",
+                        out ? "bg-danger-tint" : low ? "bg-gold-tint" : "bg-accent-tint",
+                      )}>
+                      <Ionicons
+                        name={out ? "close" : low ? "alert" : "cube-outline"}
+                        size={17}
+                        color={out ? "#AC4431" : low ? "#B98A2F" : "#1F5D3C"}
+                      />
+                    </View>
+                  )}
                   <View className="min-w-0 flex-1">
                     <T weight="semibold" className="text-[16px] text-ink" numberOfLines={1}>
                       {item.name}

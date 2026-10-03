@@ -1,6 +1,8 @@
 import { Platform } from "react-native";
 import Storage from "expo-sqlite/kv-store";
 
+import { rawRequest, isMockMode } from "./api";
+import { ApiError } from "./errors";
 import type { WhisperCard } from "./whisper";
 
 /**
@@ -234,4 +236,114 @@ export async function notifyBalanceCleared(customerName: string): Promise<void> 
 export async function resetNotificationState(): Promise<void> {
   const settings = await loadSettings();
   await save({ ...settings, lastFired: {} });
+}
+
+// ---------------------------------------------------------------------------
+// Server-sent push (shelf alerts that arrive even when the app is closed)
+//
+// On-device notifications above are scheduled locally and work with no server.
+// These go through our API: the phone hands its Expo push token to
+// POST /api/notifications/devices, and the server pushes to it when stock runs
+// low or a sale empties a product. Everything here is best-effort - if the
+// permission, the network or the server is unavailable, we stay quiet.
+// ---------------------------------------------------------------------------
+
+/** Cached so we do not re-hit the API on every screen that checks. */
+let serverPushRegistered = false;
+const PUSH_TOKEN_KEY = "oloja/push-token";
+
+export type ServerPushState = "unknown" | "registered" | "unavailable";
+
+/**
+ * Hand this phone's Expo push token to the server. Requires notification
+ * permission to already be granted (the owner grants it in Settings first).
+ */
+export async function registerForServerPush(): Promise<ServerPushState> {
+  if (!notificationsSupported() || isMockMode) return "unavailable";
+  if (!(await hasPermission())) return "unavailable";
+
+  try {
+    const Notifications = await notifications();
+    const Constants = await import("expo-constants");
+    const projectId =
+      Constants.default.expoConfig?.extra?.eas?.projectId ??
+      (Constants.default as { easConfig?: { projectId?: string } }).easConfig?.projectId;
+    if (!projectId) return "unavailable";
+
+    const expoPushToken = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    await rawRequest("POST", "/api/notifications/devices", {
+      token: expoPushToken,
+      platform: Platform.OS === "ios" ? "ios" : "android",
+    });
+    // Remembered so sign-out can unregister exactly this phone.
+    await Storage.setItemAsync(PUSH_TOKEN_KEY, expoPushToken);
+    serverPushRegistered = true;
+    return "registered";
+  } catch {
+    // Offline, not signed in, or a build without push configured. The app is
+    // fully usable either way - shelf alerts just stay local.
+    return "unavailable";
+  }
+}
+
+/**
+ * Stop this phone receiving the shop's alerts (sign-out). Best-effort: if the
+ * server is unreachable the token stays registered and the owner can prune the
+ * dead phone from Settings -> "Registered phones".
+ */
+export async function clearServerPushRegistration(): Promise<void> {
+  serverPushRegistered = false;
+  const token = await Storage.getItemAsync(PUSH_TOKEN_KEY);
+  if (!token) return;
+  try {
+    await rawRequest("DELETE", "/api/notifications/devices", { token });
+  } catch {
+    // Nothing to do - the local copy is dropped either way.
+  }
+  await Storage.removeItemAsync(PUSH_TOKEN_KEY);
+}
+
+export function serverPushIsRegistered(): boolean {
+  return serverPushRegistered;
+}
+
+export type PushTestResult = {
+  ok: boolean;
+  message: string;
+};
+
+/** Ask the server to push a test message to every device on this shop. */
+export async function sendServerPushTest(): Promise<PushTestResult> {
+  try {
+    const result = await rawRequest<{
+      sent: number;
+      dead: string[];
+      failed: number;
+      skipped: boolean;
+      devices: number;
+    }>("POST", "/api/notifications/test");
+
+    if (result.skipped) {
+      return { ok: false, message: "The server has no push key set up yet." };
+    }
+    if (result.dead.length > 0) {
+      return {
+        ok: false,
+        message:
+          result.dead.length === result.devices
+            ? "This phone is no longer registered. Open the app on it once, then try again."
+            : "That device is no longer registered; the others were pinged.",
+      };
+    }
+    if (result.sent > 0) return { ok: true, message: "Check your phone - the push is on its way." };
+    return {
+      ok: false,
+      message: "Expo did not accept the push. Give it a minute and try again.",
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof ApiError ? err.message : "Could not reach the server",
+    };
+  }
 }

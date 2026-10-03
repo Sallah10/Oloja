@@ -37,6 +37,14 @@ export function hasAuthToken(): boolean {
   return authToken !== null;
 }
 
+/**
+ * The Authorization header for anything that fetches on its own - expo-image
+ * cannot use rawRequest(), so it needs the bearer token handed to it directly.
+ */
+export function authHeaders(): Record<string, string> {
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+}
+
 function resolveBaseUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL;
   if (fromEnv && fromEnv.length > 0) return fromEnv;

@@ -64,6 +64,7 @@ model Tenant {
   stockMovements     StockMovement[]
   debtEntries        DebtEntry[]
   idempotencyRecords IdempotencyRecord[]
+  deviceTokens       DeviceToken[]
 }
 
 // Phase 6: a person belongs to ANY number of shops, with a role per shop.
@@ -142,6 +143,14 @@ model Product {
   costMinor         Int // latest purchase cost, minor units (for stock valuation)
   lowStockThreshold Int  @default(0)
   archived          Boolean @default(false)
+
+  // Product photo, stored in the database: the file system on Render is
+  // ephemeral, and a shop has a few hundred products, not a photo library.
+  // The app downscales to ~800px JPEG before upload (see src/lib/product-image.ts).
+  imageBytes  Bytes?
+  imageMime   String? // always image/jpeg today; kept so a format change is possible
+  imageWidth  Int?
+  imageHeight Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -253,4 +262,21 @@ model IdempotencyRecord {
 
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId, createdAt])
+}
+
+// A phone that wants server-sent push. The token comes from Expo
+// (getExpoPushTokenAsync) and is unique per install; token is globally unique so
+// a phone that switches shops is REASSIGNED to the new tenant rather than
+// holding two rows. lastSeenAt lets the server ignore devices that stopped
+// checking in, and rows are deleted when Expo reports the token dead.
+model DeviceToken {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  token      String   @unique
+  platform   String   @default("android")
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([tenantId])
 }

@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { View } from "react-native";
+import { useState } from "react";
+import { Pressable, View } from "react-native";
 
 import { BackLink } from "@/components/ui/back-link";
 import { Screen } from "@/components/ui/screen";
@@ -12,6 +13,8 @@ import { Text } from "@/components/ui/text";
 import { WhisperRow } from "@/components/whisper";
 import { useAuth } from "@/context/auth-context";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/cn";
+import { weeklyLetter, type WeeklyLetter } from "@/lib/letter";
 import { advice, businessHealth, whisper } from "@/lib/whisper";
 import { formatMoney } from "@/lib/money";
 import { CustomerSummary, ProductSummary, TransactionSummary } from "@/lib/types";
@@ -42,6 +45,20 @@ export default function WhisperScreen() {
   const products = productsQuery.data?.products ?? [];
   const customers = customersQuery.data?.customers ?? [];
   const transactions = transactionsQuery.data?.transactions ?? [];
+
+  // "The week in a paragraph" - written on demand so the screen costs nothing
+  // until the owner asks for it.
+  const [letter, setLetter] = useState<WeeklyLetter | null>(null);
+  const [letterBusy, setLetterBusy] = useState(false);
+
+  const handleLetter = async () => {
+    setLetterBusy(true);
+    try {
+      setLetter(await weeklyLetter(products, customers, transactions, tenant?.name));
+    } finally {
+      setLetterBusy(false);
+    }
+  };
 
   const thread = whisper(products, customers, transactions);
   const health = businessHealth(products, customers, transactions);
@@ -79,6 +96,61 @@ export default function WhisperScreen() {
         <Text className="mt-1 text-sm leading-5 text-ink-soft">
           Every line below is a real number from your ledger - the whisper never invents.
         </Text>
+      </View>
+
+      <View className="mt-4 rounded-2xl border border-line bg-paper-card p-4">
+        <View className="flex-row items-center gap-1.5">
+          <Ionicons name="reader-outline" size={14} color="#B3A78D" />
+          <Text className="text-[13px] uppercase tracking-[1.4px] text-ink-faint">
+            The week in a paragraph
+          </Text>
+        </View>
+
+        {letter ? (
+          <>
+            <Text weight="semibold" className="mt-2 text-base leading-6 text-ink">
+              {letter.letter}
+            </Text>
+            <Text className="mt-2 text-[13px] leading-5 text-ink-faint">
+              {letter.source === "model"
+                ? "Written from the numbers on this page. Nothing was added to them."
+                : "Written on this phone from your ledger - same numbers, no cost, no account."}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void handleLetter()}
+              disabled={letterBusy}
+              className={cn("mt-3 self-start rounded-full border border-line px-3 py-1.5", letterBusy && "opacity-60")}>
+              <Text className="text-[13px] font-medium text-ink-soft">
+                {letterBusy ? "Rewriting..." : "Write it again"}
+              </Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Text className="mt-2 text-sm leading-5 text-ink-soft">
+              The same numbers, told as one short paragraph - this week, and the one thing to do next.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Write the week in a paragraph"
+              onPress={() => void handleLetter()}
+              disabled={letterBusy || products.length === 0}
+              className={cn(
+                "mt-3 flex-row items-center justify-center rounded-xl border border-accent bg-accent-tint px-4 py-3",
+                (letterBusy || products.length === 0) && "opacity-60",
+              )}>
+              <Text className="text-base font-semibold text-accent-deep">
+                {letterBusy ? "Writing..." : "Write the week"}
+              </Text>
+            </Pressable>
+            {products.length === 0 ? (
+              <Text className="mt-2 text-[13px] leading-5 text-ink-faint">
+                Add a product and record a sale first - there is nothing to read yet.
+              </Text>
+            ) : null}
+          </>
+        )}
       </View>
 
       <View className="mt-6">

@@ -9,6 +9,10 @@ export type ProductSummary = {
   archived: boolean;
   createdAt: string;
   stockQty: number;
+  /** True when a shelf photo exists (fetched from /api/products/:id/image). */
+  hasImage: boolean;
+  /** When the photo was written, so a replaced photo gets a fresh image URL. */
+  imageVersion?: string | null;
 };
 
 export type CustomerSummary = {

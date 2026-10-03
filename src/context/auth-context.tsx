@@ -7,6 +7,7 @@ import {
   requestSync,
   resetOffline,
 } from "@/lib/offline";
+import { clearServerPushRegistration, registerForServerPush } from "@/lib/notifications";
 import { clearSession as clearStoredSession, loadSession, saveSession } from "@/lib/session";
 import { MembershipRole, TenantMembership } from "@/lib/types";
 
@@ -105,6 +106,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           applySession(stored);
         }
         void requestSync(rawRequest);
+        // Cold start with permission already granted: (re)confirm this phone's
+        // push token so alerts survive a reinstall or a cleared token.
+        void registerForServerPush();
       }
       setIsRestoring(false);
     })();
@@ -117,6 +121,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (session: Session) => {
       applySession(session);
       if (!isMockMode) await saveSession(session);
+      // Shelf alerts are server-sent, so this phone must hand over its push
+      // token. No-op until the owner grants notification permission.
+      void registerForServerPush();
       void requestSync(rawRequest);
     },
     [applySession],
@@ -143,7 +150,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
-    // Best-effort revoke on the server; the local token dies regardless.
+    // Best-effort revoke on the server; the local token dies regardless. Push
+    // is unregistered first so a shared handset stops receiving shop alerts.
+    await clearServerPushRegistration().catch(() => {});
     await api("/auth/logout", { method: "POST" }).catch(() => {});
     clearUser();
     await resetOffline();

@@ -49,6 +49,14 @@
         {
           "cameraPermission": "Oloja uses the camera to scan product barcodes."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Oloja uses your photos to add a picture to a product.",
+          "cameraPermission": "Oloja uses the camera to photograph a product.",
+          "microphonePermission": false
+        }
       ]
     ],
     "experiments": {

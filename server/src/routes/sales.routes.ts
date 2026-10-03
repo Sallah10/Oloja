@@ -4,6 +4,7 @@ import { z } from "zod";
 import { debtBalance } from "../lib/debt.js";
 import { HttpError, asyncHandler } from "../lib/http-error.js";
 import { runIdempotent } from "../lib/idempotency.js";
+import { notifyShop } from "../lib/notify.js";
 import { TenantScopedClient, tenantScoped } from "../lib/scoped.js";
 import { AuthedRequest, NOT_VIEW, requireAuth, requireRole } from "../middleware/auth.js";
 
@@ -74,7 +75,7 @@ salesRouter.post(
       async (tx) => {
         const product = await tx.product.findFirst({
           where: { id: input.productId },
-          select: { id: true, priceMinor: true, costMinor: true },
+          select: { id: true, priceMinor: true, costMinor: true, name: true },
         });
         if (!product) throw new HttpError(404, "Product not found");
 
@@ -136,11 +137,24 @@ salesRouter.post(
             },
           });
         }
-        return { transaction, stockQty: available - input.quantity };
+        return {
+          transaction,
+          stockQty: available - input.quantity,
+          productName: product.name,
+        };
       },
     );
 
-    res.status(201).json(result);
+    // Selling the last unit is the alert a shopkeeper actually wants on a phone.
+    if (result.stockQty === 0) {
+      void notifyShop(auth.tenantId, {
+        title: `${result.productName} is out of stock`,
+        body: "That was the last one. Restock it before the next customer asks.",
+        data: { screen: "product", productId: input.productId },
+      });
+    }
+
+    res.status(201).json({ transaction: result.transaction, stockQty: result.stockQty });
   }),
 );
 
