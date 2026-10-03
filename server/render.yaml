@@ -1,0 +1,36 @@
+# Render blueprint for Oloja's API (Express + Prisma + Neon Postgres).
+#
+# How to use:
+#   1. Push server/ (or the whole repo) to GitHub.
+#   2. In Render, "New > Blueprint" and point it at the repo. It creates a Web
+#      Service from this file.
+#   3. After the service is created, open its "Environment" tab and paste:
+#        DATABASE_URL = your Neon *pooler* url   (https://console.neon.tech, same
+#                                                 value as your local server/.env)
+#        DIRECT_URL   = your Neon *plain* url    (same value as server/.env)
+#      Both are marked `sync: false` below so they are never committed.
+#   4. Deploy happens automatically. Confirm with:
+#        curl https://YOURSERVICE.onrender.com/health   -> {"status":"ok"}
+#   5. Point the app at it: set EXPO_PUBLIC_API_URL=https://YOURSERVICE.onrender.com
+#      in the app's .env, then rebuild the APK.
+#
+# Migration note: `prisma migrate deploy` runs on EVERY start. It is idempotent
+# (only applies pending migrations) and deliberately uses the plain DIRECT_URL
+# for the migration session while DATABASE_URL keeps serving requests.
+
+services:
+  - type: web
+    name: oloja-api
+    runtime: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npx prisma migrate deploy && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false

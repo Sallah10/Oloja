@@ -7,13 +7,15 @@
     "icon": "./assets/images/icon.png",
     "scheme": "oloja",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#FAF7F2",
+    "backgroundColor": "#FBF6EE",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.oloja.app"
     },
     "android": {
+      "package": "com.oloja.app",
       "adaptiveIcon": {
-        "backgroundColor": "#FAF7F2",
+        "backgroundColor": "#FBF6EE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -23,16 +25,29 @@
     "web": {
       "output": "static",
       "bundler": "metro",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "headers": {
+        "Cross-Origin-Embedder-Policy": "credentialless",
+        "Cross-Origin-Opener-Policy": "same-origin"
+      }
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FAF7F2",
+          "backgroundColor": "#FBF6EE",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      "expo-sqlite",
+      "expo-notifications",
+      "expo-sharing",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Oloja uses the camera to scan product barcodes."
         }
       ]
     ],

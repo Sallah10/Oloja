@@ -1,56 +1,78 @@
-# Welcome to your Expo app 👋
+# Oloja
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A quiet ledger for small shops. Record sales (cash or on credit), track who owes you, watch stock,
+and restock or adjust it when the supplier knocks. Works offline on the shop floor and syncs when
+the phone finds a connection.
 
-## Get started
+## Stack
 
-1. Install dependencies
+- **App** - Expo SDK 57 (React Native 0.86, TypeScript), expo-router file-based routing in `src/app`,
+  NativeWind/Tailwind styling, TanStack Query, SQLite-backed offline mirror + outbox (`src/lib/offline.ts`).
+- **Server** - Express (TypeScript, ESM) in `server/`, Prisma + PostgreSQL. Multi-shop accounts
+  with OWNER / STAFF / VIEW roles, one-time invite codes, and idempotent mutations.
 
-   ```bash
-   npm install
-   ```
+## Repository layout
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+src/
+  app/            routes (screens) + root layout
+  components/     shared UI (buttons, fields, tabs, sync banner)
+  context/        auth session state
+  lib/            api client, offline mirror/outbox, mock API, money/time helpers
+  constants/      theme tokens
+server/
+  src/routes/     Express routers (auth, products, customers, sales, invites)
+  src/lib/        db, password, tokens, tenant scoping, idempotency
+  prisma/         schema + migrations
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Getting started
 
-### Other setup steps
+The app talks to the API in two ways:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+- **Demo mode** (default): `EXPO_PUBLIC_USE_MOCK_API=true`. Every request is answered with local
+  fake data (`src/lib/mock-api.ts`), so the whole app is clickable without a server.
+- **Real API**: set `EXPO_PUBLIC_USE_MOCK_API=false` and point `EXPO_PUBLIC_API_URL` at a running
+  server (copy `.env.example` to `.env`). Web falls back to `http://localhost:4000`.
 
-## Learn more
+### App
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npm install
+npx expo start        # scan the QR code with Expo Go
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Server
 
-## Join the community
+```bash
+cd server
+npm install
+cp .env.example .env  # fill in real Neon DATABASE_URL (pooler) + DIRECT_URL (plain host)
+npx prisma migrate deploy
+npm run dev           # http://localhost:4000
+```
 
-Join our community of developers creating universal apps.
+## Useful scripts
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+| Command                | Where  | What it does                           |
+| ---------------------- | ------ | -------------------------------------- |
+| `npx expo start`       | root   | dev server for the app                 |
+| `npm run lint`         | root   | ESLint for the app                     |
+| `npx tsc --noEmit`     | root   | type-check the app                     |
+| `npm run dev`          | server | API dev server (watch mode)            |
+| `npm run typecheck`    | server | type-check the API                     |
+| `npm run db:migrate`   | server | `prisma migrate dev`                   |
+| `npm run scope:check`  | server | tenant-isolation regression checks     |
+| `npm run phase6:check` | server | multi-shop / invites regression checks |
+
+## Feature notes
+
+- **Offline first**: list reads fall back to the local mirror, and sales / payments / restock /
+  adjustments queue in the outbox and replay when a connection returns (deduped by idempotency key).
+  Creating or editing products/customers still needs a connection (a deliberate v1 boundary).
+- **Multi-shop accounts**: one account can belong to many shops. Owners generate invite codes;
+  members join via `Shops → Join a shop with a code`, then switch between shops in settings.
+- **Stock ledger**: movements are append-only - a wrong count is fixed with a new ADJUST entry,
+  never edited.
+- **Security model**: all business queries run through tenant scoping; sessions are hashed server-side;
+  mutations carry idempotency keys to survive replays.

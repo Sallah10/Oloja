@@ -5,7 +5,7 @@ import { Colors } from "@/constants/theme";
 export default function AppTabs() {
   return (
     <NativeTabs
-      backgroundColor={Colors.light.background}
+      backgroundColor={Colors.light.paper}
       iconColor={{ default: Colors.light.inkFaint, selected: Colors.light.accent }}
       labelStyle={{
         default: { color: Colors.light.inkSoft },
@@ -29,6 +29,11 @@ export default function AppTabs() {
       <NativeTabs.Trigger name="inventory">
         <NativeTabs.Trigger.Label>Stock</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="shippingbox" md="inventory_2" />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="report">
+        <NativeTabs.Trigger.Label>Report</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="chart.bar" md="monitoring" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

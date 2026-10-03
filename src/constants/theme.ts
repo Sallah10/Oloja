@@ -1,69 +1,64 @@
 /**
- * Brand tokens for the app. Values mirror tailwind.config.js so that
- * programmatic colors (native tab bar) and className colors stay in sync.
+ * Brand tokens for Oloja. Values mirror tailwind.config.js so that
+ * programmatic colors (native tab bar, shadows) and className colors stay
+ * in sync. The app is light-only by design (see app.json "userInterfaceStyle").
+ *
+ * The identity is "a quiet ledger": warm paper, deep ink, a calm forest green
+ * for money, and an editorial serif (Fraunces) for the moments that matter.
  */
 
-import { Platform } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 
 export const Colors = {
   light: {
-    text: "#24211A",
-    background: "#FAF7F2",
-    backgroundElement: "#F1ECE2",
-    backgroundSelected: "#E7EFE9",
-    textSecondary: "#6E685C",
-    accent: "#1E5A3B",
-    accentDeep: "#16452C",
-    accentMid: "#2E7D54",
-    accentTint: "#E7EFE9",
-    line: "#E4DCCE",
-    danger: "#A63A2E",
-    inkSoft: "#6E685C",
-    inkFaint: "#A49D8E",
-    paper: "#FAF7F2",
-    paperCard: "#FFFFFF",
-  },
-  dark: {
-    text: "#E8E4DC",
-    background: "#17140F",
-    backgroundElement: "#221E17",
-    backgroundSelected: "#2A342B",
-    textSecondary: "#A8A293",
-    accent: "#4C8F6B",
-    accentDeep: "#3A7355",
-    accentMid: "#5DA37F",
-    accentTint: "#22302A",
-    line: "#332E24",
-    danger: "#C05548",
-    inkSoft: "#A8A293",
-    inkFaint: "#776F60",
-    paper: "#17140F",
-    paperCard: "#221E17",
+    // Paper
+    paper: "#FBF6EE",
+    paperCard: "#FFFDF8",
+    paperInv: "#16452F",
+
+    // Lines + hairlines
+    line: "#E9DFCD",
+    lineSoft: "#F2EADC",
+
+    // Ink (text)
+    ink: "#2B2418",
+    inkSoft: "#7A6E5A",
+    inkFaint: "#B3A78D",
+
+    // Accent (money / positive) - deep forest green
+    accent: "#1F5D3C",
+    accentDeep: "#16452F",
+    accentMid: "#2F7C54",
+    accentTint: "#E4EFE6",
+    accentTint2: "#F0F6EF",
+
+    // Gold - warm highlight used sparingly for the "story" moments
+    gold: "#B98A2F",
+    goldTint: "#F7EDD9",
+
+    // Danger / debts / stock warnings - warm rust, not alarm red
+    danger: "#AC4431",
+    dangerDeep: "#8C3323",
+    dangerTint: "#FAE9E1",
   },
 } as const;
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+/** Font families registered at boot via expo-font (see src/app/_layout.tsx). */
+export const Fonts = {
+  body: "Karla_400Regular",
+  bodyMedium: "Karla_500Medium",
+  bodySemibold: "Karla_600SemiBold",
+  bodyBold: "Karla_700Bold",
+  display: "Fraunces_600SemiBold",
+  displayBold: "Fraunces_700Bold",
+} as const;
 
-export const Fonts = Platform.select({
-  ios: {
-    sans: "system-ui",
-    serif: "ui-serif",
-    rounded: "ui-rounded",
-    mono: "ui-monospace",
-  },
-  default: {
-    sans: "normal",
-    serif: "serif",
-    rounded: "normal",
-    mono: "monospace",
-  },
-  web: {
-    sans: "var(--font-display)",
-    serif: "var(--font-serif)",
-    rounded: "var(--font-rounded)",
-    mono: "var(--font-mono)",
-  },
-});
+export const Radius = {
+  control: 12,
+  card: 20,
+  cardInner: 14,
+  pill: 999,
+} as const;
 
 export const Spacing = {
   half: 2,
@@ -76,4 +71,33 @@ export const Spacing = {
 } as const;
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 800;
+export const MaxContentWidth = 760;
+
+/** Warm, soft shadow used on floating elements (cards, sheets, toasts). */
+export const Shadows = StyleSheet.create({
+  soft: {
+    shadowColor: "#4A3A1F",
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 16,
+    shadowOpacity: 0.07,
+    elevation: 3,
+  },
+  float: {
+    shadowColor: "#201808",
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 24,
+    shadowOpacity: 0.14,
+    elevation: 8,
+  },
+});
+
+/** Dark hero card shadow (darker for contrast on colored surfaces). */
+export const HeroShadow = StyleSheet.create({
+  soft: {
+    shadowColor: "#0C2B1C",
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 20,
+    shadowOpacity: 0.22,
+    elevation: 6,
+  },
+});
