@@ -41,3 +41,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Firebase is not used - push goes through Expo's service, so this file has no job here.
+google-services.json
