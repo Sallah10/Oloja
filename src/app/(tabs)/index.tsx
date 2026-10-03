@@ -113,7 +113,7 @@ export default function DashboardScreen() {
       <View className="mt-5">
         <View className="rounded-3xl border border-accent-deep bg-accent-deep px-5 py-5 shadow-soft">
           <View className="flex-row items-center justify-between">
-            <Text weight="semibold" className="text-[11px] uppercase tracking-[1.6px] text-white/60">
+            <Text weight="semibold" className="text-[13px] uppercase tracking-[1.6px] text-white/60">
               Today
             </Text>
             {canTransact ? (
@@ -189,7 +189,7 @@ export default function DashboardScreen() {
             label="Restock soon"
             tone={stock.low + stock.out > 0 ? "danger" : "default"}
             value={
-              <Text weight="bold" className="text-[26px] tabular-nums tracking-tight text-ink">
+              <Text weight="bold" className="text-[28px] tabular-nums tracking-tight text-ink">
                 {stock.low + stock.out}
               </Text>
             }

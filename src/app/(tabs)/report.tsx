@@ -95,7 +95,7 @@ export default function ReportScreen() {
       <View className="mt-5">
         <View className="rounded-3xl border border-accent-deep bg-accent-deep px-5 py-5 shadow-soft">
           <View className="flex-row items-center justify-between">
-            <T weight="semibold" className="text-[11px] uppercase tracking-[1.6px] text-white/60">
+            <T weight="semibold" className="text-[13px] uppercase tracking-[1.6px] text-white/60">
               {story.label}
             </T>
             <View className="rounded-full bg-white/15 px-2.5 py-1">
@@ -182,7 +182,7 @@ export default function ReportScreen() {
             <Ionicons name="trending-up" size={16} color="#1F5D3C" />
           </View>
           <View className="flex-1">
-            <T className="text-[11px] uppercase tracking-wide text-ink-faint">Best day</T>
+            <T className="text-[13px] uppercase tracking-wide text-ink-faint">Best day</T>
             <T weight="semibold" className="text-sm leading-5 text-ink" numberOfLines={1}>
               {story.bestDay
                 ? `${story.bestDay.label} · ${formatMoney(story.bestDay.amountMinor)}`
@@ -195,7 +195,7 @@ export default function ReportScreen() {
             <Ionicons name="moon-outline" size={16} color="#B98A2F" />
           </View>
           <View className="flex-1">
-            <T className="text-[11px] uppercase tracking-wide text-ink-faint">Quiet days</T>
+            <T className="text-[13px] uppercase tracking-wide text-ink-faint">Quiet days</T>
             <T weight="semibold" className="text-sm leading-5 text-ink" numberOfLines={1}>
               {story.quietDays} so far
             </T>
@@ -258,7 +258,7 @@ export default function ReportScreen() {
                       />
                     </View>
                     <View className="min-w-0 flex-1">
-                      <T weight="semibold" className="text-[15px] text-ink" numberOfLines={1}>
+                      <T weight="semibold" className="text-[16px] text-ink" numberOfLines={1}>
                         {m.name}
                       </T>
                       <T className="mt-0.5 text-xs text-ink-soft">
@@ -287,7 +287,7 @@ export default function ReportScreen() {
                     <Card className="flex-row items-center gap-3 px-4 py-3">
                       <Avatar name={c.name} />
                       <View className="min-w-0 flex-1">
-                        <T weight="semibold" className="text-[15px] text-ink" numberOfLines={1}>
+                        <T weight="semibold" className="text-[16px] text-ink" numberOfLines={1}>
                           {c.name}
                         </T>
                         <T className="mt-0.5 text-xs text-ink-soft">
@@ -324,7 +324,7 @@ function ShelfStat({ label, value, tone }: { label: string; value: string; tone:
       <T weight="bold" className="text-2xl tabular-nums tracking-tight" style={{ color }}>
         {value}
       </T>
-      <T className="mt-0.5 text-center text-[11px] leading-4 text-ink-soft">{label}</T>
+      <T className="mt-0.5 text-center text-[13px] leading-4 text-ink-soft">{label}</T>
     </View>
   );
 }
@@ -384,16 +384,16 @@ function DayBars({ days, bestDayLabel }: { days: MonthStory["days"]; bestDayLabe
         })}
       </View>
       <View className="mt-2 flex-row items-center justify-between">
-        <T className="text-[10px] text-ink-faint">{first}</T>
+        <T className="text-[11px] text-ink-faint">{first}</T>
         <View className="flex-row items-center gap-2">
           {bestDayLabel ? (
             <View className="flex-row items-center gap-1">
               <View className="h-2 w-2 rounded-full bg-gold" />
-              <T className="text-[10px] text-ink-faint">{bestDayLabel}</T>
+              <T className="text-[11px] text-ink-faint">{bestDayLabel}</T>
             </View>
           ) : null}
         </View>
-        <T className="text-[10px] text-ink-faint">{last}</T>
+        <T className="text-[11px] text-ink-faint">{last}</T>
       </View>
     </Card>
   );

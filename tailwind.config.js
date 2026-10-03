@@ -45,6 +45,18 @@ module.exports = {
         display: ["Fraunces_600SemiBold"],
         "display-bold": ["Fraunces_700Bold"],
       },
+      fontSize: {
+        // Readability pass: a measured +1px on the small end (labels, helpers)
+        // and on the largest step. Body text stays at 16px and the mid steps are
+        // untouched, so cards, chips and the till keypad keep their rhythm.
+        xs: "13px",
+        sm: "15px",
+        base: "16px",
+        lg: "18px",
+        xl: "20px",
+        "2xl": "24px",
+        "3xl": "31px",
+      },
       boxShadow: {
         soft: "0 6px 16px 0 rgba(74, 58, 31, 0.07)",
         float: "0 10px 24px 0 rgba(32, 24, 8, 0.14)",

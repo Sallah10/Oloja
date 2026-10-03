@@ -71,7 +71,7 @@ export default function WhisperScreen() {
       <View className="mt-4 rounded-2xl border border-line bg-paper-card p-4 shadow-soft">
         <View className="flex-row items-center gap-1.5">
           <Ionicons name="ear-outline" size={14} color="#B3A78D" />
-          <Text className="text-[11px] uppercase tracking-[1.4px] text-ink-faint">Weekly word</Text>
+          <Text className="text-[13px] uppercase tracking-[1.4px] text-ink-faint">Weekly word</Text>
         </View>
         <Text weight="semibold" className="mt-2 text-base leading-6 text-ink">
           {thread.headline}

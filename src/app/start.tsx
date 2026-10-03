@@ -111,7 +111,7 @@ export default function StartScreen() {
       <BackLink fallback="/" />
 
       <View className="mt-3">
-        <T display weight="semibold" className="text-[26px] leading-8 text-ink">
+        <T display weight="semibold" className="text-[28px] leading-8 text-ink">
           {trade ? "Your first shelf" : "What kind of shop is yours?"}
         </T>
         <T className="mt-1 text-sm leading-5 text-ink-soft">
@@ -196,7 +196,7 @@ export default function StartScreen() {
                 <View className="h-11 w-11 items-center justify-center rounded-xl bg-accent-tint">
                   <Ionicons name={t.icon} size={20} color="#1F5D3C" />
                 </View>
-                <T weight="semibold" className="mt-3 text-[15px] leading-5 text-ink">
+                <T weight="semibold" className="mt-3 text-[16px] leading-5 text-ink">
                   {t.name}
                 </T>
                 <T className="mt-1 text-xs leading-4 text-ink-soft">{t.blurb}</T>

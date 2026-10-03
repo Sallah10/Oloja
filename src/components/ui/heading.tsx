@@ -16,7 +16,7 @@ const base = "font-display tracking-tight text-ink";
 
 const levels: Record<HeadingLevel, string> = {
   h1: "text-[34px] leading-[1.05]",
-  h2: "text-[26px] leading-[1.1]",
+  h2: "text-[28px] leading-[1.1]",
   h3: "text-[20px] leading-[1.15]",
 };
 

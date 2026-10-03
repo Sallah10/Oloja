@@ -432,7 +432,7 @@ export default function SalesScreen() {
       ) : null}
 
       <View className="mt-6 mb-2.5 flex-row items-center justify-between">
-        <T weight="semibold" className="text-[11px] uppercase tracking-[1.6px] text-ink-faint">
+        <T weight="semibold" className="text-[13px] uppercase tracking-[1.6px] text-ink-faint">
           Your sales
         </T>
         {transactions.length > 0 ? (
@@ -557,7 +557,7 @@ function TransactionRow({ tx }: { tx: TransactionSummary }) {
       </View>
       <View className="min-w-0 flex-1">
         <View className="flex-row items-center gap-2">
-          <T weight="semibold" className="flex-1 text-[15px] text-ink" numberOfLines={1}>
+          <T weight="semibold" className="flex-1 text-[16px] text-ink" numberOfLines={1}>
             {isSale ? tx.product?.name ?? "Sale" : "Payment received"}
           </T>
           {isSale && tx.onCredit ? <Badge tone="danger" label="credit" /> : null}

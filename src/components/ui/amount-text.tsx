@@ -30,7 +30,7 @@ const sizes: Record<AmountSize, string> = {
   base: "text-base",
   lg: "text-2xl",
   xl: "text-3xl",
-  "2xl": "text-[38px]",
+  "2xl": "text-[40px]",
 };
 
 /** A formatted naira figure. `tabular-nums` keeps digits aligned so a column

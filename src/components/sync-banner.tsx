@@ -44,7 +44,7 @@ export function SyncBanner() {
               status.online ? "bg-accent" : "bg-danger"
             }`}
           />
-          <Text className="text-[11px] font-medium text-ink-soft">{parts.join(" · ")}</Text>
+          <Text className="text-[13px] font-medium text-ink-soft">{parts.join(" · ")}</Text>
         </View>
       </Pressable>
     </View>

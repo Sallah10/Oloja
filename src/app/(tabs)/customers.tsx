@@ -274,7 +274,7 @@ export default function CustomersScreen() {
                 <View className="flex-row items-center gap-3">
                   <Avatar name={item.name} />
                   <View className="min-w-0 flex-1">
-                    <T weight="semibold" className="text-[15px] text-ink" numberOfLines={1}>
+                    <T weight="semibold" className="text-[16px] text-ink" numberOfLines={1}>
                       {item.name}
                     </T>
                     {item.phone ? (
@@ -287,7 +287,7 @@ export default function CustomersScreen() {
                     {inDebt ? (
                       <>
                         <AmountText amount={item.debtMinor} tone="debt" size="sm" />
-                        <T className="mt-0.5 text-[10px] uppercase tracking-wide text-ink-faint">
+                        <T className="mt-0.5 text-[11px] uppercase tracking-wide text-ink-faint">
                           owes you
                         </T>
                       </>
@@ -296,7 +296,7 @@ export default function CustomersScreen() {
                         <T weight="semibold" className="text-sm text-accent-deep">
                           Paid up
                         </T>
-                        <T className="mt-0.5 text-[10px] uppercase tracking-wide text-ink-faint">
+                        <T className="mt-0.5 text-[11px] uppercase tracking-wide text-ink-faint">
                           no balance
                         </T>
                       </>
@@ -382,7 +382,7 @@ export default function CustomersScreen() {
                   )}
 
                   <View className="mt-5 mb-1 flex-row items-center justify-between">
-                    <T weight="semibold" className="text-[11px] uppercase tracking-[1.4px] text-ink-faint">
+                    <T weight="semibold" className="text-[13px] uppercase tracking-[1.4px] text-ink-faint">
                       Balance ledger
                     </T>
                     <AmountText amount={Math.abs(item.debtMinor)} tone={inDebt ? "debt" : "owed"} size="sm" />

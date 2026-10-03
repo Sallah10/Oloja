@@ -359,7 +359,7 @@ export default function InventoryScreen() {
                     />
                   </View>
                   <View className="min-w-0 flex-1">
-                    <T weight="semibold" className="text-[15px] text-ink" numberOfLines={1}>
+                    <T weight="semibold" className="text-[16px] text-ink" numberOfLines={1}>
                       {item.name}
                     </T>
                     <T className="mt-0.5 text-xs text-ink-soft">
@@ -369,7 +369,7 @@ export default function InventoryScreen() {
                         : " · no cost yet"}
                     </T>
                     {item.barcode ? (
-                      <T className="mt-0.5 text-[10px] tracking-wide text-ink-faint">
+                      <T className="mt-0.5 text-[11px] tracking-wide text-ink-faint">
                         {item.barcode}
                       </T>
                     ) : null}
@@ -523,10 +523,10 @@ function Metric({
       <View className={cn("h-9 w-9 items-center justify-center rounded-xl", tile)}>
         <Ionicons name={icon} size={17} color={color} />
       </View>
-      <T weight="bold" className="mt-2 text-[26px] tabular-nums tracking-tight text-ink">
+      <T weight="bold" className="mt-2 text-[28px] tabular-nums tracking-tight text-ink">
         {value}
       </T>
-      <T className="text-[11px] uppercase tracking-[1.2px] text-ink-faint">{label}</T>
+      <T className="text-[13px] uppercase tracking-[1.2px] text-ink-faint">{label}</T>
       <T className="mt-1 text-xs leading-4 text-ink-soft">{caption}</T>
     </Card>
   );

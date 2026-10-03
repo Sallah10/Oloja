@@ -123,7 +123,7 @@ export default function CustomerScreen() {
       {customer ? (
         <View className="mt-5 gap-4">
           <View className="rounded-3xl border border-accent-deep bg-accent-deep px-5 py-5">
-            <Text weight="semibold" className="text-[11px] uppercase tracking-[1.6px] text-white/60">
+            <Text weight="semibold" className="text-[13px] uppercase tracking-[1.6px] text-white/60">
               Balance
             </Text>
             <AmountText amount={Math.abs(customer.debtMinor)} tone="hero" size="2xl" className="mt-1" />
@@ -239,7 +239,7 @@ export default function CustomerScreen() {
 
           <Card className="overflow-hidden">
             <View className="px-4 pt-4">
-              <Text weight="semibold" className="text-[11px] uppercase tracking-[1.4px] text-ink-faint">
+              <Text weight="semibold" className="text-[13px] uppercase tracking-[1.4px] text-ink-faint">
                 Balance ledger
               </Text>
             </View>

@@ -78,7 +78,7 @@ export function OnboardingChecklist({
               <Text className="mt-0.5 text-xs leading-4 text-ink-soft">{step.hint}</Text>
             </View>
             {step.disabled ? (
-              <Text className="text-[11px] text-ink-faint">Later</Text>
+              <Text className="text-[13px] text-ink-faint">Later</Text>
             ) : (
               <Ionicons name="chevron-forward" size={16} color="#B3A78D" />
             )}

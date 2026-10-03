@@ -49,7 +49,7 @@ const textVariants: Record<Variant, string> = {
 
 const textSizes: Record<Size, string> = {
   sm: "text-[13px]",
-  md: "text-[15px]",
+  md: "text-[16px]",
   lg: "text-base",
 };
 

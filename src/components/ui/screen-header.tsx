@@ -22,7 +22,7 @@ export function ScreenHeader({ eyebrow, title, subtitle, right, className }: Scr
     <View className={cn("mt-2 flex-row items-start justify-between gap-3", className)}>
       <View className="min-w-0 flex-1">
         {eyebrow ? (
-          <Text weight="semibold" className="text-[11px] uppercase tracking-[1.6px] text-ink-faint">
+          <Text weight="semibold" className="text-[13px] uppercase tracking-[1.6px] text-ink-faint">
             {eyebrow}
           </Text>
         ) : null}

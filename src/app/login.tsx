@@ -75,7 +75,7 @@ export default function LoginScreen() {
             <View className="mt-4 rounded-full border border-line bg-paper-card px-3 py-1">
               <View className="flex-row items-center gap-1.5">
                 <View className="h-1.5 w-1.5 rounded-full bg-accent" />
-                <Text className="text-[11px] font-medium uppercase tracking-wider text-ink-faint">
+                <Text className="text-[13px] font-medium uppercase tracking-wider text-ink-faint">
                   Demo mode - local data, no server
                 </Text>
               </View>

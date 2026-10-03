@@ -39,7 +39,7 @@ export function StatCard({ icon, label, value, caption, tone = "default", onPres
       <View className={cn("mb-3 h-9 w-9 items-center justify-center rounded-xl", iconTiles[tone])}>
         <Ionicons name={icon} size={18} color={iconColors[tone]} />
       </View>
-      <Text className="text-[11px] uppercase tracking-[1.2px] text-ink-faint">{label}</Text>
+      <Text className="text-[13px] uppercase tracking-[1.2px] text-ink-faint">{label}</Text>
       <View className="mt-1">{value}</View>
       <Text className="mt-1 text-xs leading-4 text-ink-soft">{caption}</Text>
     </View>

@@ -158,7 +158,7 @@ export default function ProductScreen() {
         <View className="mt-5 gap-4">
           <View className="rounded-3xl border border-accent-deep bg-accent-deep px-5 py-5">
             <View className="flex-row items-center justify-between">
-              <Text weight="semibold" className="text-[11px] uppercase tracking-[1.6px] text-white/60">
+              <Text weight="semibold" className="text-[13px] uppercase tracking-[1.6px] text-white/60">
                 Stock on hand
               </Text>
               <Badge
@@ -308,7 +308,7 @@ export default function ProductScreen() {
 
           <Card className="overflow-hidden">
             <View className="px-4 pt-4">
-              <Text weight="semibold" className="text-[11px] uppercase tracking-[1.4px] text-ink-faint">
+              <Text weight="semibold" className="text-[13px] uppercase tracking-[1.4px] text-ink-faint">
                 Stock movements
               </Text>
             </View>

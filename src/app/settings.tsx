@@ -354,7 +354,7 @@ export default function SettingsScreen() {
 
                     {!isSelf && member.role !== "OWNER" ? (
                       <View className="mt-3 flex-row flex-wrap items-center gap-2">
-                        <Text className="text-[11px] text-ink-soft">Role:</Text>
+                        <Text className="text-[13px] text-ink-soft">Role:</Text>
                         {(["STAFF", "VIEW"] as const).map((r) => (
                           <Pressable
                             key={r}
@@ -367,7 +367,7 @@ export default function SettingsScreen() {
                             )}>
                             <Text
                               className={cn(
-                                "text-[11px] font-medium",
+                                "text-[13px] font-medium",
                                 member.role === r ? "text-accent-deep" : "text-ink-soft",
                               )}>
                               {r === "STAFF" ? "Staff" : "View only"}
@@ -381,13 +381,13 @@ export default function SettingsScreen() {
                               accessibilityRole="button"
                               onPress={() => void handleRemove(member.id)}
                               className="rounded-full bg-danger px-3 py-1">
-                              <Text className="text-[11px] font-semibold text-white">Remove</Text>
+                              <Text className="text-[13px] font-semibold text-white">Remove</Text>
                             </Pressable>
                             <Pressable
                               accessibilityRole="button"
                               onPress={() => setConfirmingMember(null)}
                               className="rounded-full border border-line px-3 py-1">
-                              <Text className="text-[11px] text-ink-soft">Cancel</Text>
+                              <Text className="text-[13px] text-ink-soft">Cancel</Text>
                             </Pressable>
                           </View>
                         ) : (
@@ -395,13 +395,13 @@ export default function SettingsScreen() {
                             accessibilityRole="button"
                             onPress={() => setConfirmingMember(member.id)}
                             className="rounded-full border border-line px-3 py-1">
-                            <Text className="text-[11px] font-medium text-danger">Remove</Text>
+                            <Text className="text-[13px] font-medium text-danger">Remove</Text>
                           </Pressable>
                         )}
                       </View>
                     ) : null}
 
-                    {isSelf ? <Text className="mt-1 text-[11px] text-ink-faint">{"That's you."}</Text> : null}
+                    {isSelf ? <Text className="mt-1 text-[13px] text-ink-faint">{"That's you."}</Text> : null}
                   </View>
                 );
               })
@@ -476,7 +476,7 @@ export default function SettingsScreen() {
                     );
                   })}
                 </View>
-                <Text className="mt-2 text-[11px] text-ink-faint">
+                <Text className="mt-2 text-[13px] text-ink-faint">
                   This schedules on this device only - it works even when the app is closed.
                 </Text>
               </View>
