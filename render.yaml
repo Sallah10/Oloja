@@ -1,0 +1,47 @@
+# Render blueprint for Oloja's API (Express + Prisma + Neon Postgres).
+#
+# THIS FILE MUST LIVE AT THE REPO ROOT so Render finds it, and `rootDir: server`
+# below is what tells Render to build the API instead of the Expo app.
+#
+# How to use:
+#   1. Push the repo to GitHub (branch: master).
+#   2. Render -> New -> Blueprint -> pick the repo. It reads this file.
+#   3. After the service exists, open its Environment tab and paste these three
+#      values (same values as your local server/.env):
+#        DATABASE_URL      = Neon POOLER url   (ends with -pooler)
+#        DIRECT_URL        = Neon PLAIN url    (no -pooler)
+#        EXPO_ACCESS_TOKEN = expo.dev access token (only needed for push)
+#      All three are marked `sync: false` below, so Render never sees them in git.
+#   4. Deploy runs automatically. Confirm it is alive with:
+#        curl https://oloja-api.onrender.com/health   ->  {"status":"ok"}
+#   5. The app's .env already points at that URL. Rebuild the APK.
+#
+# Why `npm install` and not `npm ci`:
+#   The lockfile was generated on Windows, which does not record Linux-only
+#   optional dependencies. `npm ci` hard-fails on that desync ("Missing:
+#   @emnapi/core from lock file"). `npm install` fills them in on the Linux
+#   build. Swap back to `npm ci` only if you regenerate the lock on Linux/CI.
+#
+# Migration note: `prisma migrate deploy` runs on EVERY start. It is idempotent
+# (only applies pending migrations) and uses the plain DIRECT_URL for the
+# migration session while DATABASE_URL keeps serving requests.
+
+services:
+  - type: web
+    name: oloja-api
+    runtime: node
+    region: frankfurt
+    plan: free
+    rootDir: server
+    buildCommand: npm install && npm run build
+    startCommand: npx prisma migrate deploy && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
